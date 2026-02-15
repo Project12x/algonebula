@@ -3,6 +3,17 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-02-15
+
+### Added
+
+- `ScaleQuantizer`: 15 scales (Chromatic, Major, Minor, modes, pentatonics, blues, whole-tone, harmonic/melodic minor), 12 root keys, O(1) array lookup
+- `Microtuning`: 3 tuning systems (12-TET, Just Intonation, Pythagorean), adjustable A4 reference, pre-computed 128-note frequency tables
+- `ClockDivider`: integer sample counting, 6 divisions (whole to 1/32), swing (50-75%), block-level processing
+- Clock-driven engine stepping in `processBlock` (replaces manual stepping)
+- 22 new headless tests: 5 ScaleQuantizer, 6 Microtuning, 5 ClockDivider, 3 integration, 3 mutation
+- Total test count: 52 (all passing)
+
 ## [0.2.0] - 2026-02-15
 
 ### Added

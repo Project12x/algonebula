@@ -131,6 +131,14 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   engine.randomize(42, 0.3f);
   gridSnapshot.copyFrom(engine.getGrid());
   engineGeneration.store(0, std::memory_order_relaxed);
+
+  // Initialize clock
+  clock.reset(sampleRate);
+  clock.setBPM(120.0);
+  clock.setDivision(ClockDivider::Division::Quarter);
+
+  // Pre-compute tuning table
+  tuning.setSystem(Microtuning::System::TwelveTET, 440.0f);
 }
 
 void AlgoNebulaProcessor::releaseResources() {
@@ -156,7 +164,13 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     buffer.clear(ch, 0, numSamples);
 
-  // TODO Phase 3: Clock-driven engine stepping
+  // Clock-driven engine stepping
+  for (int i = 0; i < numSamples; ++i) {
+    if (clock.tick()) {
+      engine.step();
+    }
+  }
+
   // TODO Phase 5: Quantizer -> Voices -> Stereo Mix -> Output
 
   // Update grid snapshot for GL/UI thread (simple copy, no lock)

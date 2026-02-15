@@ -45,6 +45,24 @@ All implementations must be allocation-free in `step()`.
 - `alignas(64)` atomics to avoid false sharing
 - `drainInto()` template for bounded processing in processBlock
 
+## Clock + Music Theory (Phase 3)
+
+### ClockDivider
+- Integer sample counting (no floating-point drift)
+- 6 divisions: whole, half, quarter, eighth, sixteenth, thirty-second
+- Swing timing: 50% (straight) to 75% (max swing)
+- Drives `engine.step()` from `processBlock()`
+
+### ScaleQuantizer
+- 15 scales: Chromatic, Major/Minor, 7 modes, 2 pentatonics, Blues, Whole-Tone, Harmonic/Melodic Minor
+- 12 root keys (0=C through 11=B)
+- O(1) array lookup — pre-computed degree tables
+
+### Microtuning
+- 3 tuning systems: 12-TET (equal), Just Intonation (5-limit), Pythagorean (3:2 stacking)
+- Adjustable A4 reference (default 440Hz)
+- Pre-computed 128-note frequency table — O(1) RT lookup
+
 ## Thread Model
 - **Audio thread**: `processBlock()` — zero allocation, lock-free reads
 - **UI thread**: editor painting, parameter changes via APVTS (atomic), cell edits via SPSC queue

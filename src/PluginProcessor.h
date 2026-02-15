@@ -5,19 +5,20 @@
 #include <juce_dsp/juce_dsp.h>
 #include <memory>
 
-
 #include "engine/CellEditQueue.h"
 #include "engine/CellularEngine.h"
+#include "engine/ClockDivider.h"
 #include "engine/GameOfLife.h"
 #include "engine/Grid.h"
-
+#include "engine/Microtuning.h"
+#include "engine/ScaleQuantizer.h"
 
 // Forward declarations
 class NebulaLookAndFeel;
 
 //==============================================================================
 /// AlgoNebula processor — generative ambient synthesizer.
-/// Phase 2: CellularEngine + Game of Life with double-buffered grid.
+/// Phase 3: Clock + ScaleQuantizer + Microtuning integrated.
 class AlgoNebulaProcessor : public juce::AudioProcessor {
 public:
   AlgoNebulaProcessor();
@@ -79,6 +80,11 @@ private:
   Grid gridSnapshot; // Double-buffer: audio writes, GL/UI reads
   CellEditQueue cellEditQueue;
   std::atomic<uint64_t> engineGeneration{0};
+
+  // --- Clock + Music Theory ---
+  ClockDivider clock;
+  ScaleQuantizer quantizer;
+  Microtuning tuning;
 
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};
