@@ -5,6 +5,53 @@
 
 ---
 
+## Cross-Cutting Concerns
+
+These apply to EVERY phase and are not optional.
+
+### Logging Infrastructure (from Phase 2 onward)
+- `juce::Logger` with file output + console output
+- Log levels: debug / info / warn / error
+- Entry/exit logging for `prepareToPlay()`, `releaseResources()`, algorithm swaps
+- Startup diagnostics: version, OS, audio device, sample rate, buffer size, loaded config
+- State transition logging: algorithm changes, transport events, preset loads
+- Boundary logging: MIDI I/O, parameter changes, grid state saves
+- Use `#ifdef DEBUG_VERBOSE` for per-sample/per-block internals
+- All debug logging stripped in Release builds
+
+### Documentation Updates (every phase)
+- `CHANGELOG.md` updated in the SAME commit as the feature
+- `STATE.md` updated when features land
+- `ARCHITECTURE.md` updated when component structure changes
+- `HOWTO.md` updated when build process or dev workflow changes
+
+### Build Preservation (every build)
+- Discover actual output paths dynamically before building
+- Copy all build artifacts to `releases/YYYY-MM-DD_HHMM/` before each build
+- Tag working builds in git after tests pass
+
+### Technical Debt Reviews
+Explicit pause-and-review checkpoints:
+- **After Phase 5** (first playable): abstractions holding? test gaps?
+- **After Phase 10** (all algorithms): performance debt? code duplication across algorithms?
+- **After Phase 15** (pre-release): final cleanup pass, remove all `// TODO` and `// HACK`
+
+### State Format Versioning
+- State blob includes a version number (uint32) as the first field
+- Migration functions: `migrateStateV1toV2()`, etc.
+- Forward-compatible: unknown fields are preserved, not discarded
+- Roundtrip test runs against saved state blobs from every tagged version
+
+### Defensive Coding for DSP
+- All algorithm outputs clamped to valid range before downstream use
+- NaN/Inf guard on every algorithm `step()` output (replace with 0.0)
+- Grid values bounds-checked on read (not just write)
+- Feed/kill rates for R-D validated on parameter change
+- Lenia growth function output clamped to prevent runaway
+- Brownian walker positions wrapped to grid bounds
+
+---
+
 ## Phase 1 — Skeleton + Thread Safety + UI Foundation (`v0.1.0`) :white_check_mark:
 
 **Goal:** Build system, dependencies, basic UI chrome. First successful build.
@@ -33,6 +80,7 @@
 
 **Goal:** First cellular automaton running in the audio thread with double-buffered grid.
 
+- [ ] Set up logging infrastructure (juce::Logger, file + console, log levels)
 - [ ] `CellularEngine` abstract interface (`step()`, `getGrid()`, `reset()`, `seed()`)
 - [ ] `GameOfLife` implementation
   - 5 rule presets: Classic (B3/S23), High Life, Day & Night, Seeds, Ambient
@@ -42,12 +90,26 @@
 - [ ] Double-buffered grid swap mechanism (lock-free, audio owns front, GL reads back)
 - [ ] SPSC queue for UI -> audio cell edit commands
 
-**Testing Milestone:**
-- [ ] Headless: GoL Blinker oscillates correctly (period 2)
-- [ ] Headless: GoL Glider translates correctly (period 4)
-- [ ] Headless: GoL still-life patterns remain stable for 1000 generations
-- [ ] Headless: Seeded init produces identical grids for same seed + density
-- [ ] Headless: 5 rule variants produce distinct behavior
+**Testing Milestone — Correctness:**
+- [ ] GoL Blinker oscillates correctly (period 2, exact cell positions verified)
+- [ ] GoL Glider translates correctly (period 4, displacement verified)
+- [ ] GoL still-life patterns (Block, Beehive, Loaf) remain stable for 1000 generations
+- [ ] Seeded init produces identical grids for same seed + density (bit-perfect)
+- [ ] All 5 rule presets produce distinct steady-state behavior (statistical cell count divergence)
+- [ ] Toroidal wrapping: glider crossing edge reappears on opposite side at correct position
+- [ ] Cell age increments correctly (tracked per-cell, reset on death, verified at known generations)
+
+**Testing Milestone — Integration:**
+- [ ] Double-buffer swap: audio thread writes don't corrupt GL thread reads (concurrent stress test)
+- [ ] SPSC queue: 1000 rapid cell edits from UI thread drain correctly in processBlock
+
+**Testing Milestone — Mutation:**
+- [ ] Mutate neighbor count threshold (B3 -> B2): Blinker test MUST fail
+- [ ] Mutate survival rule (S23 -> S2): Blinker test MUST fail (dies on gen 2)
+- [ ] Swap toroidal wrap to clamp: Glider-crossing-edge test MUST fail
+- [ ] Remove age increment: Age tracking test MUST fail
+- [ ] Corrupt seed PRNG: Seeded-identity test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] `CellularEngine::step()` is O(rows * cols), no allocations
@@ -64,19 +126,29 @@
 **Goal:** Musical pitch mapping and tempo-synced stepping.
 
 - [ ] `ScaleQuantizer`: 15 scales x 12 root keys, octave range (base + span)
-  - Pentatonic Major/Minor, Major/Natural Minor, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, Whole Tone, Blues, Harmonic Minor, Melodic Minor, Chromatic
 - [ ] `Microtuning`: 12-TET, Just Intonation, Pythagorean, adjustable A4 reference (420-460Hz)
-- [ ] `ClockDivider`:
-  - Host transport sync (play/stop/loop/tempo)
-  - Free-running internal clock when host not playing
-  - Playhead division (1/4, 1/8, 1/16, 1/32) and generation division (1-16 steps)
-  - Swing support (50-75%)
+- [ ] `ClockDivider`: host transport sync, free-running internal clock, swing
 
-**Testing Milestone:**
-- [ ] Headless: All 15 scales x 12 keys produce correct note sets
-- [ ] Headless: Microtuning frequency tables match reference values (±0.1 cent)
-- [ ] Headless: Clock fires correct number of steps for given BPM + division + buffer size
-- [ ] Headless: Swing timing offsets are within ±1 sample of expected
+**Testing Milestone — Correctness:**
+- [ ] All 15 scales produce mathematically correct interval sets (verified against music theory reference)
+- [ ] All 12 root transpositions shift intervals correctly (not just C-based)
+- [ ] Microtuning 12-TET: A4 = 440Hz exactly, A3 = 220Hz exactly
+- [ ] Microtuning Just Intonation: P5 = 3/2 ratio (701.955 cents, verified ± 0.01 cent)
+- [ ] Microtuning Pythagorean: P5 = 3/2 ratio, M3 = 81/64 (407.82 cents)
+- [ ] A4 reference adjustment: 432Hz produces 432.0Hz ± 0.001Hz for A4
+- [ ] Clock fires correct number of steps for given BPM + division + buffer size (sample-accurate)
+- [ ] Swing timing: 67% swing offsets every other step by exactly (2/3 - 1/2) * step_duration
+
+**Testing Milestone — Integration:**
+- [ ] Clock -> GoL stepping: at 120BPM 1/4 note, GoL steps exactly 2 times per second
+- [ ] Scale quantizer with GoL: active cells map to valid scale degrees only (no out-of-scale notes)
+- [ ] Transport stop: GoL pauses, grid state frozen, resume continues from same state
+
+**Testing Milestone — Mutation:**
+- [ ] Change Dorian mode interval [2,1,2,2,2,1,2] -> [2,1,2,2,2,2,1]: scale test MUST fail
+- [ ] Offset Just Intonation P5 ratio by 1 cent: tuning test MUST fail
+- [ ] Change clock sample counter from `>=` to `>`: step count test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] Scale lookup is array index (O(1)), no search
@@ -93,23 +165,59 @@
 **Goal:** Band-limited oscillators, envelopes, filters, sub-oscillator. Produces sound.
 
 - [ ] `PolyBLEPOscillator`: 8 waveshapes (sine, triangle, saw, pulse, sine+oct, fifth stack, pad, bell)
-- [ ] `SynthVoice`: AHDSR envelope, SVF filter (LP/HP/BP/Notch), noise layer (per-voice filtered white/pink)
-- [ ] Sub-oscillator: sine, follows lowest voice, -1/-2 octave selectable, level knob
+- [ ] `SynthVoice`: AHDSR envelope, SVF filter (LP/HP/BP/Notch), noise layer
+- [ ] Sub-oscillator: sine, follows lowest voice, -1/-2 octave, level knob
 - [ ] Per-voice pan + auto-pan from grid column position
-- [ ] Equal-power stereo panning law
+- [ ] Establish **CPU performance baseline**: single voice at 44.1kHz/512 samples
 
-**Testing Milestone:**
-- [ ] Headless: PolyBLEP output is below -60dB above Nyquist/2 (aliasing check)
-- [ ] Headless: AHDSR envelope shape matches expected curve (sample-accurate ramp checks)
-- [ ] Headless: SVF filter has expected frequency response at cutoff (±1dB)
-- [ ] Headless: Sub-oscillator tracks lowest voice frequency correctly
-- [ ] Headless: Noise layer RMS is within expected range
+**Testing Milestone — Correctness (Oscillators):**
+- [ ] Sine: output matches `std::sin()` reference to < -120dB error
+- [ ] Sine: FFT shows single peak at fundamental, all harmonics < -100dB
+- [ ] Saw: FFT harmonics follow 1/n amplitude law (± 1dB for first 20 harmonics)
+- [ ] Saw: no aliasing — all energy above Nyquist/2 is < -60dB
+- [ ] Square: FFT odd harmonics follow 1/n, even harmonics < -60dB
+- [ ] Pulse: width = 0.5 matches square, width = 0.25 has correct harmonic structure
+- [ ] Triangle: FFT odd harmonics follow 1/n², even harmonics < -60dB
+- [ ] PolyBLEP correction: saw at 10kHz (44.1kHz SR) has < -60dB aliasing vs naive saw
+- [ ] Bell (FM): output is non-zero, inharmonic spectrum (not integer harmonics)
+- [ ] Pad: detuned unison produces expected beating rate (± 0.5Hz for ± 7 cent detune)
+- [ ] All waveshapes produce output in [-1.0, 1.0] range (no clipping, no DC offset > 0.001)
+- [ ] Frequency accuracy: 440Hz request produces 440.0Hz ± 0.01Hz (measured via zero-crossing)
+
+**Testing Milestone — Correctness (Envelope):**
+- [ ] Attack ramp: linear ramp from 0 to 1 over specified time (± 1 sample)
+- [ ] Hold: sustains at 1.0 for specified duration (± 1 sample)
+- [ ] Decay: ramps from 1.0 to sustain level over specified time
+- [ ] Sustain: holds at specified level indefinitely
+- [ ] Release: ramps from current level to 0 over specified time (± 1 sample)
+- [ ] Note-off during attack: transitions to release from current value (no discontinuity > 0.01)
+- [ ] Retrigger during release: restarts from current value (no click)
+
+**Testing Milestone — Correctness (Filter):**
+- [ ] SVF LP at 1kHz: -3dB at cutoff, -12dB/oct rolloff (± 1dB at 2kHz, 4kHz)
+- [ ] SVF HP at 1kHz: -3dB at cutoff, +12dB/oct rise below
+- [ ] SVF BP at 1kHz: peak at cutoff, symmetric rolloff
+- [ ] Resonance at 0.9: 12dB peak at cutoff (± 2dB)
+- [ ] Filter stability: no self-oscillation blowup at resonance = 1.0 (output bounded)
+
+**Testing Milestone — Integration:**
+- [ ] Full voice: oscillator -> filter -> envelope -> pan produces expected output
+- [ ] Sub-oscillator tracks lowest active voice frequency (verified at multiple pitches)
+- [ ] 8 simultaneous voices don't exceed [-1, 1] output range (with proper gain staging)
+
+**Testing Milestone — Mutation:**
+- [ ] Remove PolyBLEP correction from saw: aliasing test MUST fail (energy above Nyquist/2 rises)
+- [ ] Change envelope attack from linear to instant: attack ramp test MUST fail
+- [ ] Offset SVF cutoff coefficient by 10%: frequency response test MUST fail
+- [ ] Remove sub-oscillator octave division: tracking test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] All voice buffers pre-allocated for max polyphony (8 voices) in `prepareToPlay()`
 - [ ] No `new`/`delete` in voice note-on/note-off
 - [ ] SmoothedValue on all continuous params (cutoff, resonance, level, pan)
 - [ ] Filter coefficient computation bounded (no iterative convergence)
+- [ ] **Baseline established:** single voice < X% CPU at 44.1kHz/512
 
 **Tag:** `v0.4.0`
 
@@ -119,27 +227,46 @@
 
 **Goal:** First playable prototype. Engine -> Quantizer -> Voices -> Audio out.
 
-- [ ] `VoiceAllocator`: priority (lowest/highest/latest), stealing (oldest/quietest/drop), hysteresis, unison mode
+- [ ] `VoiceAllocator`: priority (lowest/highest/latest), stealing (oldest/quietest/drop), hysteresis, unison
 - [ ] Ambient voice controls: drone sustain, note probability, gate time, velocity humanization
 - [ ] Humanization v1: swing, strum/note spread, melodic inertia, round-robin variation
 - [ ] Portamento: continuous + stepped (glissando through scale degrees), legato mode
 - [ ] Wire full chain: Engine -> Quantizer -> Allocator -> Voices -> Stereo Mix -> Output
 
-**Testing Milestone:**
-- [ ] Headless: Voice allocator respects max polyphony
-- [ ] Headless: Stealing policy produces expected victim (oldest/quietest)
-- [ ] Headless: Portamento interpolation is sample-accurate
-- [ ] Headless: Drone sustain extends note beyond cell death with correct probability
-- [ ] Headless: Melodic inertia biases toward small intervals (statistical test)
-- [ ] **Manual: User confirms first playable prototype produces musical output**
+**Testing Milestone — Correctness:**
+- [ ] Voice allocator respects max polyphony (never exceeds N active voices)
+- [ ] Stealing oldest: correct victim identified (tracked by note-on timestamp)
+- [ ] Stealing quietest: correct victim identified (tracked by envelope level)
+- [ ] Drone sustain at 100%: note persists after cell death (verified over 100 steps)
+- [ ] Drone sustain at 0%: note releases immediately on cell death
+- [ ] Note probability at 50%: statistical test over 1000 triggers confirms 50% ± 5%
+- [ ] Gate time at 50%: note duration is exactly half of step duration (± 1 sample)
+- [ ] Melodic inertia at 100%: consecutive notes differ by ≤ 2 scale degrees (statistical test)
+- [ ] Portamento continuous: frequency glides linearly over specified time
+- [ ] Portamento stepped: frequency steps through intermediate scale degrees
+
+**Testing Milestone — Integration:**
+- [ ] Full chain: GoL stepping produces audible musical output at correct scale/key
+- [ ] Transport stop: voices enter release, no new notes triggered
+- [ ] Transport resume: stepping continues, new notes trigger correctly
+- [ ] Rapid parameter changes: no clicks, no crashes (1000 random param changes in 10 seconds)
+
+**Testing Milestone — Mutation:**
+- [ ] Remove voice stealing: polyphony overflow test MUST fail (voices exceed max)
+- [ ] Set drone sustain probability to always-false: drone test MUST fail
+- [ ] Remove portamento interpolation: glide test MUST fail (instant jump)
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
-- [ ] Full audio path profiled: `processBlock` < 30% of audio budget at 44.1kHz/512 samples
-- [ ] No allocations in full render chain (verify with MSVC debug heap or AddressSanitizer)
+- [ ] Full audio path profiled: `processBlock` < 30% of audio budget at 44.1kHz/512
+- [ ] No allocations in full render chain (verified with instrumented allocator)
 - [ ] Voice stealing is O(N) where N = max voices (8), no sorting
 - [ ] All random number generation uses pre-seeded, allocation-free PRNG
 
 **Tag:** `v0.5.0` — **First Playable Milestone**
+
+> [!IMPORTANT]
+> **Technical Debt Review #1:** Pause and review. Are abstractions holding? Test gaps? Code duplication? Fix before Phase 6.
 
 ---
 
@@ -147,7 +274,8 @@
 
 **Goal:** Save/load grid state with DAW project. Reproducible patterns.
 
-- [ ] `getStateInformation()` / `setStateInformation()`:
+- [ ] `getStateInformation()` / `setStateInformation()` with version number:
+  - Version field (uint32) — first field, always
   - APVTS parameter XML
   - Grid state as base64-encoded binary blob
   - Algorithm type + seed
@@ -155,11 +283,22 @@
 - [ ] Seed parameter: UI display (copyable), paste, "New Seed" button
 - [ ] Factory pattern library (GoL patterns: Glider, Pulsar, Gosper Gun, R-Pentomino, etc.)
 
-**Testing Milestone:**
-- [ ] Headless: Save/load roundtrip preserves exact grid state (bit-perfect)
-- [ ] Headless: Save/load preserves all APVTS parameters
-- [ ] Headless: Same seed + density produces identical grid on reload
-- [ ] Headless: Factory patterns load correctly and are stable/oscillating as expected
+**Testing Milestone — Correctness:**
+- [ ] Save/load roundtrip preserves exact grid state (bit-perfect comparison)
+- [ ] Save/load preserves all APVTS parameters (every param compared)
+- [ ] Same seed + density produces identical grid on reload
+- [ ] Factory patterns: Glider glides, Pulsar oscillates, Gosper Gun fires gliders
+- [ ] State version field is written and read correctly
+
+**Testing Milestone — Integration:**
+- [ ] Save at generation N, load, continue stepping — grid matches stepping from scratch to N then continuing
+- [ ] Load state from older version format: migration succeeds, no crash
+
+**Testing Milestone — Mutation:**
+- [ ] Corrupt version field: load MUST reject or migrate gracefully (not crash)
+- [ ] Truncate state blob by 10 bytes: load MUST fail gracefully
+- [ ] Flip one bit in grid blob: loaded grid MUST differ from saved grid
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] `getStateInformation()` runs on message thread only (asserted)
@@ -174,16 +313,30 @@
 
 **Goal:** External keyboard control and MIDI output for driving other instruments.
 
-- [ ] `MidiInputHandler`: key tracking, velocity -> density, channel filter, bypass toggle
-- [ ] `MidiOutputGenerator`: mirror generated notes to MIDI output, channel select, internal audio toggle
-- [ ] `MidiLearnManager`: right-click popup, CC capture, mapping persistence in state
+- [ ] `MidiInputHandler`: key tracking, velocity -> density, channel filter, bypass
+- [ ] `MidiOutputGenerator`: mirror generated notes, channel select, internal audio toggle
+- [ ] `MidiLearnManager`: right-click popup, CC capture, mapping persistence
 - [ ] Visual: MIDI badge on mapped controls, learn-mode pulse animation
 
-**Testing Milestone:**
-- [ ] Headless: MIDI note-in changes quantizer root correctly
-- [ ] Headless: MIDI output buffer contains expected note-on/off messages
-- [ ] Headless: CC mapping roundtrip (learn -> save -> load -> verify)
+**Testing Milestone — Correctness:**
+- [ ] MIDI note C4 input sets quantizer root to C (verified by output frequencies)
+- [ ] MIDI velocity 127 -> density 1.0, velocity 0 -> density 0.0 (linear mapping)
+- [ ] Channel filter: notes on wrong channel are ignored
+- [ ] MIDI output: note-on at correct pitch/velocity, note-off on voice release
+- [ ] CC mapping: CC74 value 64 maps to parameter midpoint (within 1%)
+- [ ] 14-bit CC pairs produce expected fine resolution
+
+**Testing Milestone — Integration:**
+- [ ] MIDI in -> key change -> quantizer -> voices: output frequencies match new key
+- [ ] MIDI out -> external synth: correct notes received (loopback test)
+- [ ] CC learn -> save -> load -> CC input: parameter responds correctly
 - [ ] **Manual: DAW test — keyboard changes key, output drives second instrument**
+
+**Testing Milestone — Mutation:**
+- [ ] Offset MIDI note number by 1: key tracking test MUST fail
+- [ ] Invert CC polarity: CC mapping test MUST fail
+- [ ] Remove channel filter: channel filter test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] MIDI learn target is `std::atomic<int>`, no lock
@@ -198,6 +351,7 @@
 
 **Goal:** Full FX chain with reorderable slots, freeze, and safety processor.
 
+- [ ] Integrate **Airwindows** dependency (MIT, needed for tape sat + brickwall)
 - [ ] `EffectChain`: reorderable slot system with per-effect bypass and dry/wet
 - [ ] Chorus (stereo width), Phaser (ping-pong), Flanger (ping-pong)
 - [ ] Bitcrush (bit depth, sample rate reduction, lo-fi filter)
@@ -205,16 +359,35 @@
 - [ ] Shimmer reverb (FDN + pitch-shifted feedback path)
 - [ ] Ping-pong delay (host-synced, feedback LP, pan width)
 - [ ] Master limiter
-- [ ] Freeze processor (circular buffer capture, volume, LP filter, crossfade unfreeze)
-- [ ] `SafetyProcessor` (DC offset filter 5Hz HP, ultrasonic LP 20kHz, brickwall at -0.3dBFS)
+- [ ] Freeze processor (circular buffer capture, volume, LP, crossfade unfreeze)
+- [ ] `SafetyProcessor` (DC filter 5Hz HP, ultrasonic LP 20kHz, brickwall -0.3dBFS)
 
-**Testing Milestone:**
-- [ ] Headless: Each effect produces non-silent, non-identical output vs bypass
-- [ ] Headless: Effect chain reordering produces different output (order matters)
-- [ ] Headless: Safety processor clamps output to -0.3dBFS true peak
-- [ ] Headless: DC offset filter removes 1Hz test tone to < -60dB
-- [ ] Headless: Freeze capture + playback matches source (crossfade verification)
-- [ ] Mutation tests: bypass flag, mix param, chain order — verify tests catch breakage
+**Testing Milestone — Correctness:**
+- [ ] Chorus: output has expected LFO-modulated delay (measured via cross-correlation)
+- [ ] Phaser: notch frequencies match expected all-pass cascade positions
+- [ ] Flanger: comb filter peaks at expected frequencies for given delay
+- [ ] Bitcrush 8-bit: output quantized to 256 levels exactly
+- [ ] Bitcrush sample rate reduction: output sample-and-holds at specified rate
+- [ ] Tape sat: soft clipping curve matches expected waveshaper transfer function
+- [ ] Shimmer reverb: pitch-shifted feedback is +1 octave (± 5 cents, measured via FFT)
+- [ ] Ping-pong delay: L/R alternation verified, delay time matches host tempo division
+- [ ] Limiter: output never exceeds threshold (verified with 10 seconds of worst-case input)
+- [ ] Safety DC filter: 1Hz sine reduced to < -60dB, 100Hz sine passes at > -1dB
+- [ ] Safety brickwall: output never exceeds -0.3dBFS true peak (10 million samples tested)
+
+**Testing Milestone — Integration:**
+- [ ] Chain reorder produces different output (A->B->C vs C->B->A, compared)
+- [ ] Bypass each effect individually: output matches chain without that effect
+- [ ] Mix (dry/wet) at 0%: output matches dry signal exactly
+- [ ] Freeze: captured buffer loops correctly, unfreeze fades out over 2 seconds
+- [ ] Full chain + full polyphony: output stays within safety processor limits
+
+**Testing Milestone — Mutation:**
+- [ ] Remove safety processor DC filter: DC test MUST fail (1Hz passes through)
+- [ ] Change brickwall threshold from -0.3dBFS to 0dBFS: true peak test MUST fail
+- [ ] Remove PolyBLEP shimmer pitch shift: octave verification MUST fail
+- [ ] Set chorus depth to 0: chorus output MUST equal dry (difference test fails)
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] All effect buffers pre-allocated in `prepareToPlay()`
@@ -229,25 +402,40 @@
 
 ## Phase 9 — Additional Algorithms (Batch 1) (`v0.9.0`)
 
-**Goal:** Five more algorithms: Wolfram, Brian's Brain, Cyclic, Reaction-Diffusion, Particle Swarm.
+**Goal:** Five more algorithms with crossfader.
 
-- [ ] `WolframCA`: 1D rule (0-255), waterfall display, rule presets
-- [ ] `BriansBrain`: three-state (alive/dying/dead), constant sparking
+- [ ] `WolframCA`: 1D rule (0-255), waterfall display
+- [ ] `BriansBrain`: three-state (alive/dying/dead)
 - [ ] `CyclicCA`: N states (3-16), threshold, rotating spirals
-- [ ] `ReactionDiffusion`: Gray-Scott model, feed/kill rates, floating-point grid
-- [ ] `ParticleSwarm`: agent-based, count/speed/cohesion params, flocking
-- [ ] `AlgorithmCrossfader`: dual-engine simultaneous run, timed crossfade, no silence gap
+- [ ] `ReactionDiffusion`: Gray-Scott model, feed/kill rates, float grid
+- [ ] `ParticleSwarm`: agent-based, count/speed/cohesion, flocking
+- [ ] `AlgorithmCrossfader`: dual-engine, timed crossfade, no silence gap
 - [ ] Factory patterns for each algorithm
+- [ ] NaN/Inf guards on all algorithm outputs
 
-**Testing Milestone:**
-- [ ] Headless: Each algorithm produces distinct output from GoL (statistical comparison)
-- [ ] Headless: Wolfram Rule 110 produces known Turing-complete pattern
-- [ ] Headless: Brian's Brain maintains constant activity (never fully dies)
-- [ ] Headless: Cyclic CA produces rotation (directional movement detected)
-- [ ] Headless: R-D produces stable Turing patterns at known feed/kill values
-- [ ] Headless: Particle swarm maintains group cohesion (centroid tracking)
-- [ ] Headless: Crossfade produces no silence gap during algorithm switch
-- [ ] Headless: Crossfade output is click-free (zero-crossing analysis)
+**Testing Milestone — Correctness:**
+- [ ] Wolfram Rule 110: known output row matches published truth table after 50 steps
+- [ ] Wolfram Rule 30: produces expected chaotic pattern (entropy measurement)
+- [ ] Brian's Brain: activity never reaches zero over 10000 generations (always sparking)
+- [ ] Cyclic CA: directional rotation detected (spatial autocorrelation lag analysis)
+- [ ] R-D at feed=0.055, kill=0.062: produces stable spots (pattern count stable after 5000 steps)
+- [ ] R-D NaN guard: feed=0.0, kill=0.0 produces valid output (no NaN/Inf)
+- [ ] Particle swarm: centroid tracking shows group cohesion (stddev < threshold)
+- [ ] Particle swarm: speed parameter linearly scales step distance (± 5%)
+- [ ] Each algorithm produces statistically distinct grid patterns (chi-squared vs GoL)
+
+**Testing Milestone — Integration:**
+- [ ] Crossfade: output amplitude during transition is continuous (no gap > 1ms of silence)
+- [ ] Crossfade: no clicks (max sample-to-sample delta < 0.1 during transition)
+- [ ] Crossfade: both engines run simultaneously (verified by grid snapshots during transition)
+- [ ] Algorithm swap mid-song: voices transition smoothly, no crash
+
+**Testing Milestone — Mutation:**
+- [ ] Wolfram: flip one bit in rule lookup table: Rule 110 pattern test MUST fail
+- [ ] Brian's Brain: remove "dying" state: activity test MUST fail (dies instantly)
+- [ ] R-D: swap feed/kill: spot pattern test MUST fail
+- [ ] Particle: set cohesion to 0: centroid test MUST fail (particles scatter)
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] R-D uses pre-allocated float grid, no per-step allocation
@@ -263,17 +451,31 @@
 
 **Goal:** Continuous-state algorithms for organic, ambient textures.
 
-- [ ] `Lenia`: continuous-state GoL, Gaussian neighborhood kernel, growth function, configurable radius/center/width/timestep
-- [ ] `BrownianField`: multi-walker (1-16) random walk, correlation, drift bias, step size
+- [ ] `Lenia`: continuous-state GoL, Gaussian kernel, growth function, radius/center/width/timestep
+- [ ] `BrownianField`: multi-walker (1-16), correlation, drift bias, step size
 - [ ] Factory patterns for both
-- [ ] Intensity mapping: Lenia cell values (0.0-1.0) -> velocity, Brownian walker position -> pitch
+- [ ] Intensity mapping: Lenia cell values (0.0-1.0) -> velocity
 
-**Testing Milestone:**
-- [ ] Headless: Lenia Orbium creature remains stable for 1000 steps
-- [ ] Headless: Lenia total cell intensity is bounded (no runaway growth)
-- [ ] Headless: Brownian walker distribution is statistically uniform over long runs
-- [ ] Headless: Brownian correlation parameter produces expected variance reduction
-- [ ] Headless: Intensity mapping produces velocity range [0, 127]
+**Testing Milestone — Correctness:**
+- [ ] Lenia Orbium creature remains stable for 1000 steps (total mass ± 5%)
+- [ ] Lenia total cell intensity is bounded (no runaway: max cell value ≤ 1.0)
+- [ ] Lenia Gaussian kernel: kernel values match expected Gaussian (R² > 0.999)
+- [ ] Lenia growth function: output matches expected bell curve shape
+- [ ] Brownian walker: mean displacement² grows linearly with steps (diffusion law)
+- [ ] Brownian: 16 walkers at correlation=1.0 move in near-lockstep (position variance < threshold)
+- [ ] Brownian: correlation=0.0 produces independent walks (cross-correlation < 0.1)
+- [ ] Intensity mapping: cell value 0.5 -> velocity 64 (± 1)
+
+**Testing Milestone — Integration:**
+- [ ] Lenia -> quantizer -> voices: smooth continuous output produces evolving pitch sequences
+- [ ] Brownian -> quantizer: walker position maps to pitch, verified over 100 steps
+- [ ] Crossfade from GoL to Lenia: smooth transition, no clicks
+
+**Testing Milestone — Mutation:**
+- [ ] Clamp Lenia growth function to always return 0: creature dies, stability test MUST fail
+- [ ] Remove Brownian position wrapping: walkers leave grid, bound test MUST fail
+- [ ] Double Lenia timestep: Orbium destabilizes, stability test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] Lenia kernel pre-computed in `prepareToPlay()`, not per-step
@@ -281,6 +483,9 @@
 - [ ] Brownian PRNG is allocation-free, deterministic with seed
 
 **Tag:** `v0.10.0`
+
+> [!IMPORTANT]
+> **Technical Debt Review #2:** All 8 algorithms complete. Review: performance debt? Code duplication across algorithms? Common patterns to refactor into base class? Test coverage gaps?
 
 ---
 
@@ -292,14 +497,23 @@
 - [ ] Vibrato LFO: rate 0.1-10Hz, depth 0-100 cents
 - [ ] Unison detune: all voices on one pitch, spread 0-25 cents
 
-**Testing Milestone:**
-- [ ] Headless: Arp Up pattern on C major triad produces correct sequence
-- [ ] Headless: Vibrato depth matches expected frequency deviation (±1 cent)
-- [ ] Headless: Unison detune spread matches expected cent offsets
+**Testing Milestone — Correctness:**
+- [ ] Arp Up on C-E-G: produces C, E, G, C, E, G... in exact order
+- [ ] Arp Down on C-E-G: produces G, E, C, G, E, C... in exact order
+- [ ] Arp UpDown on C-E-G: produces C, E, G, E, C, E... (no double at endpoints)
+- [ ] Arp Random: all notes appear with roughly equal probability (± 10% over 1000 steps)
+- [ ] Arp host sync: at 120BPM 1/16, exactly 8 arp steps per second
+- [ ] Vibrato at 5Hz, 50 cents: frequency deviation is ±50 cents sinusoidal at 5Hz (FFT verified)
+- [ ] Unison 4 voices at ±7 cents: beating rate ≈ 4Hz (measured via amplitude modulation)
+
+**Testing Milestone — Mutation:**
+- [ ] Reverse Arp Up direction: sequence order test MUST fail
+- [ ] Double vibrato depth coefficient: depth test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] Arp pattern buffer is fixed-size array (max voices)
-- [ ] Vibrato LFO is pure math (no table lookup allocation)
+- [ ] Vibrato LFO is pure math (sin approximation or wavetable, no allocation)
 
 **Tag:** `v0.11.0`
 
@@ -310,21 +524,29 @@
 **Goal:** LFO modulation routing and spatial movement.
 
 - [ ] 2 LFOs (sine/tri/saw/S&H, 0.01-20Hz, depth)
-- [ ] Cell intensity mod source (age/neighbor count, 0-1)
-- [ ] Envelope follower mod source
-- [ ] Stereo drift: per-voice pan wander (Brownian/sine LFO, rate 0-1Hz, depth 0-100%)
-- [ ] 8 routing slots, each with source/destination/depth (-1 to +1)
+- [ ] Cell intensity mod source, envelope follower mod source
+- [ ] Stereo drift: per-voice pan wander (Brownian/sine, rate 0-1Hz, depth 0-100%)
+- [ ] 8 routing slots with source/destination/depth (-1 to +1)
 - [ ] Popout window UI
 
-**Testing Milestone:**
-- [ ] Headless: LFO -> cutoff modulation produces expected frequency sweep
-- [ ] Headless: Envelope follower tracks amplitude correctly (±1dB)
-- [ ] Headless: Stereo drift produces per-voice pan movement over time
-- [ ] Headless: Mod routing depth = 0 produces no modulation
+**Testing Milestone — Correctness:**
+- [ ] LFO sine at 1Hz: output matches sin(2*pi*t) (R² > 0.999)
+- [ ] LFO triangle at 1Hz: output matches expected triangle wave
+- [ ] LFO S&H: output steps at specified rate, values uniformly distributed
+- [ ] LFO -> cutoff at depth 1.0: cutoff sweeps full range over one LFO cycle
+- [ ] Envelope follower: tracks 200ms amplitude envelope (± 1dB)
+- [ ] Stereo drift at rate 0.5Hz: pan value oscillates over 2 seconds
+- [ ] Mod depth = 0: no modulation (destination unchanged)
+- [ ] Mod depth = -1: modulation is inverted vs depth = +1
+
+**Testing Milestone — Mutation:**
+- [ ] Invert LFO phase: sine output test MUST show inverted waveform
+- [ ] Remove depth scaling: full-range modulation always, depth=0 test MUST fail
+- [ ] Mutation survival rate < 20%
 
 **RT Safety Checkpoint:**
 - [ ] Mod matrix evaluation is O(active routes), max 8 = bounded
-- [ ] LFO phase is per-sample increment, no trig function per sample (use wavetable or polynomial)
+- [ ] LFO uses wavetable or polynomial, no `sin()` per sample
 - [ ] Envelope follower is one-pole filter, O(1) per sample
 
 **Tag:** `v0.12.0`
@@ -335,23 +557,24 @@
 
 **Goal:** Real-time grid visualization with multiple render modes.
 
-- [ ] `AlgoVisualizerComponent` (backend-agnostic interface for future WebGPU swap)
-- [ ] 2D grid mode: color cells by age gradient, playhead glow stripe, note highlight
-- [ ] 3D terrain mode: height-mapped mesh from grid, orbit camera
+- [ ] `AlgoVisualizerComponent` (backend-agnostic interface for future WebGPU)
+- [ ] 2D grid mode: cell colors by age gradient, playhead glow, note highlights
+- [ ] 3D terrain mode: height-mapped mesh, orbit camera
 - [ ] Wireframe mode: same mesh, line-rendered
-- [ ] GLSL shaders (grid_vertex/fragment, terrain_vertex/fragment)
-- [ ] GL thread reads double-buffered back copy (no lock, 30-60fps)
+- [ ] GLSL shaders (grid/terrain vertex + fragment)
 
 **Testing Milestone:**
-- [ ] **Manual: 2D grid renders correctly, cells light up on step**
+- [ ] Headless: GL context creation doesn't crash (graceful fallback if no GPU)
+- [ ] **Manual: 2D grid cells light up on algorithm step**
+- [ ] **Manual: Playhead glow moves across grid at correct tempo**
 - [ ] **Manual: 3D terrain height corresponds to cell values**
-- [ ] **Manual: Camera orbit is smooth, no Z-fighting**
-- [ ] Headless: GL context creation doesn't crash in headless (graceful fallback)
+- [ ] **Manual: Camera orbit is smooth, no Z-fighting or clipping**
+- [ ] **Manual: Mode switching (2D/3D/Wire) is instant, no flicker**
 
 **RT Safety Checkpoint:**
-- [ ] GL rendering is on its own thread, never blocks audio
-- [ ] Grid data read from back buffer only (no contention with audio front buffer)
-- [ ] GL thread frame rate is independent of audio buffer size
+- [ ] GL rendering on its own thread, never blocks audio
+- [ ] Grid data read from back buffer only (no audio thread contention)
+- [ ] GL frame rate independent of audio buffer size
 
 **Tag:** `v0.13.0`
 
@@ -362,25 +585,24 @@
 **Goal:** Complete editor layout with all panels and controls.
 
 - [ ] Algorithm selector + per-algorithm parameter panels
-- [ ] Scale/key selector, voice panels with all knob controls
-- [ ] `NebulaDial` with gradient arc + glow (melatonin_blur)
-- [ ] Effect chain popout window (reorderable slots, bypass, mix)
-- [ ] Mod matrix popout window (routing grid)
-- [ ] Grid resize controls + pattern preset dropdown + seed display
-- [ ] Theme system: Deep Nebula (default), Synthwave Sunset, Void, Solar Flare
-- [ ] DPI-aware layout, minimum 900x600, resizable with aspect ratio lock
+- [ ] Scale/key, voice panels with `NebulaDial` (gradient arc + melatonin_blur glow)
+- [ ] Effect chain popout, mod matrix popout
+- [ ] Grid resize + pattern presets + seed display
+- [ ] Theme system: Deep Nebula, Synthwave Sunset, Void, Solar Flare
+- [ ] DPI-aware, minimum 900x600, resizable with aspect ratio lock
 
 **Testing Milestone:**
-- [ ] **Manual: All controls respond to mouse interaction**
-- [ ] **Manual: Popout windows open/close correctly**
-- [ ] **Manual: Theme switching updates all colors instantly**
-- [ ] **Manual: UI is legible at 100%, 125%, 150% DPI scaling**
+- [ ] **Manual: All knobs/sliders respond to mouse drag**
+- [ ] **Manual: Popout windows open/close, remember position**
+- [ ] **Manual: Theme switch updates all colors instantly**
+- [ ] **Manual: UI legible at 100%, 125%, 150% DPI**
 - [ ] **Manual: Editor close/reopen restores all control states**
+- [ ] **Manual: Resizing maintains layout integrity**
 
 **RT Safety Checkpoint:**
-- [ ] UI repaints don't allocate (font caching, path caching verified)
-- [ ] Timer-driven animations don't block the message thread
-- [ ] Popout windows don't create additional audio processing overhead
+- [ ] UI repaints don't allocate (font/path caching verified)
+- [ ] Timer-driven animations don't block message thread
+- [ ] Popout windows don't add audio processing overhead
 
 **Tag:** `v0.14.0`
 
@@ -390,58 +612,59 @@
 
 **Goal:** Factory presets, CPU monitoring, optimization pass.
 
-- [ ] 18 factory presets (12 musical, 6 experimental) embedded as BinaryData JSON
-- [ ] User preset save/load (JSON in plugin data directory)
-- [ ] Preset browser: category filter, search, favorites
+- [ ] 18 factory presets (12 musical, 6 experimental) as BinaryData JSON
+- [ ] User preset save/load, preset browser (categories, search, favorites)
 - [ ] A/B preset comparison
 - [ ] CPU meter in UI (processBlock time as % of audio budget)
 - [ ] CPU profiling + optimization pass
-- [ ] Sample rate handling audit (verify all DSP at 44.1k, 48k, 88.2k, 96k)
-- [ ] All documentation updated
+- [ ] Sample rate audit: all DSP verified at 44.1k, 48k, 88.2k, 96k
 
 **Testing Milestone:**
-- [ ] Headless: All 18 factory presets load without errors
-- [ ] Headless: Preset save/load roundtrip preserves all parameters
-- [ ] Headless: processBlock at 96kHz/64 samples stays < 70% budget
+- [ ] All 18 factory presets load without errors
+- [ ] All 18 presets produce non-silent, distinct audio output
+- [ ] Preset save/load roundtrip preserves every parameter
+- [ ] processBlock at 96kHz/64 samples < 70% budget
+- [ ] processBlock at 44.1kHz/512 samples < 30% budget
 - [ ] **Manual: User auditions all 18 presets, confirms quality**
-- [ ] **Manual: CPU meter reads correctly under load**
+- [ ] **Manual: CPU meter accuracy verified against external profiler**
 
 **RT Safety Checkpoint:**
-- [ ] Preset loading queued to message thread, audio thread only reads final state
+- [ ] Preset loading on message thread only, audio reads final state
 - [ ] No JSON parsing on audio thread
-- [ ] CPU measurement uses `juce::Time::getHighResolutionTicks()`, no system calls
+- [ ] CPU measurement uses high-res ticks, no system calls
 
 **Tag:** `v0.15.0`
+
+> [!IMPORTANT]
+> **Technical Debt Review #3:** Pre-release cleanup. Remove all `// TODO` and `// HACK`. Review test coverage. Check for unused code. Final abstraction review.
 
 ---
 
 ## Phase 16 — Release Candidate (`v1.0.0-rc`)
 
-**Goal:** Full validation pass. Multi-DAW testing. Release build.
+**Goal:** Full validation. Multi-DAW testing. Release build.
 
-- [ ] Full automated test suite passes (0 failures)
-- [ ] Mutation testing: >80% mutation kill rate on critical DSP code
-- [ ] TSAN build: no data races detected under stress test
+- [ ] Full automated test suite: 0 failures
+- [ ] Mutation testing on all critical DSP: >80% kill rate
+- [ ] TSAN build: no data races under stress test
 - [ ] Multi-DAW testing:
-  - [ ] REAPER: load, play, stop, loop, tempo change, save/load project, bypass
+  - [ ] REAPER: load, play, stop, loop, tempo change, save/load, bypass
   - [ ] Ableton Live: same battery
   - [ ] FL Studio: same battery
   - [ ] Bitwig: same battery (if available)
-- [ ] Installer packaging (Inno Setup or similar)
-- [ ] Release build optimizations (LTO, NDEBUG, no debug logging)
-- [ ] README with screenshots, quick start guide
-
-**Testing Milestone:**
-- [ ] All automated tests pass
-- [ ] All manual verification items from Phases 5-15 re-checked
 - [ ] 1-hour soak test: no memory growth, no CPU drift, no audio glitches
 - [ ] Cold start time < 2 seconds
+- [ ] Windows code signing for VST3
+- [ ] Installer packaging (Inno Setup or similar)
+- [ ] Release build (LTO, NDEBUG, no debug logging)
+- [ ] README with screenshots, quick start guide
 
-**RT Safety Checkpoint:**
-- [ ] Final RT audit: zero allocations in processBlock (verified with instrumented allocator)
+**RT Safety — Final Audit:**
+- [ ] Zero allocations in processBlock (instrumented allocator verification)
 - [ ] No mutex locks on audio thread
-- [ ] No system calls on audio thread (file I/O, logging, etc.)
-- [ ] SafetyProcessor never bypassed in release build
+- [ ] No system calls on audio thread (file I/O, logging, printf)
+- [ ] SafetyProcessor always active, never bypassed
+- [ ] NaN/Inf guards on all algorithm outputs verified
 
 **Tag:** `v1.0.0`
 
@@ -456,9 +679,8 @@
 - 2 LFOs + mod matrix (8 routes)
 - MIDI I/O + MIDI Learn
 - OpenGL 2D/3D visualization
-- 18 factory presets
-- 4 themes
-- Full documentation
+- 18 factory presets, 4 themes
+- Full documentation suite
 
 ---
 
@@ -467,7 +689,7 @@
 ### v2.0 — Voice Groups + Experimental Algorithms (Tier 1)
 - Voice group system: up to 4 groups, each with own algorithm/scale/grid
 - Slime Mold (Physarum): pheromone trail branching networks
-- Particle-Reactive Synth: particles respond to audio output (feedback loop)
+- Particle-Reactive Synth: audio-reactive feedback loop
 - Per-algorithm 3D shaders
 
 ### v2.1 — Experimental Algorithms (Tier 2)
@@ -479,9 +701,7 @@
 - Custom microtuning (per-degree cent offsets)
 
 ### v3.0 — Experimental Algorithms (Tier 3)
-- Markov Chain Grid, Predator-Prey, Neural CA, DLA, L-System Grid
+- Markov Chain, Predator-Prey, Neural CA, DLA, L-System Grid
 
 ### v3.1 — Platform Evolution
-- WebGPU renderer (replace OpenGL)
-- MPE support, network sync
-- Mod matrix expansion (16+ routes)
+- WebGPU renderer, MPE support, network sync, mod matrix expansion
