@@ -126,6 +126,11 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   masterVolume.reset(sampleRate, 0.02); // 20ms smoothing
   masterVolume.setCurrentAndTargetValue(
       apvts.getRawParameterValue("masterVolume")->load());
+
+  // Initialize engine with default seed
+  engine.randomize(42, 0.3f);
+  gridSnapshot.copyFrom(engine.getGrid());
+  engineGeneration.store(0, std::memory_order_relaxed);
 }
 
 void AlgoNebulaProcessor::releaseResources() {
@@ -138,6 +143,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   juce::ScopedNoDenormals noDenormals;
 
+  // Drain UI cell edits into engine grid (bounded)
+  cellEditQueue.drainInto(engine.getGridMutable());
+
   // Read smoothed parameters
   masterVolume.setTargetValue(
       apvts.getRawParameterValue("masterVolume")->load());
@@ -148,7 +156,12 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     buffer.clear(ch, 0, numSamples);
 
-  // TODO Phase 2+: Engine -> Quantizer -> Voices -> FX -> Safety -> Output
+  // TODO Phase 3: Clock-driven engine stepping
+  // TODO Phase 5: Quantizer -> Voices -> Stereo Mix -> Output
+
+  // Update grid snapshot for GL/UI thread (simple copy, no lock)
+  gridSnapshot.copyFrom(engine.getGrid());
+  engineGeneration.store(engine.getGeneration(), std::memory_order_relaxed);
 
   // Apply master volume with smoothing (per-sample)
   for (int sample = 0; sample < numSamples; ++sample) {

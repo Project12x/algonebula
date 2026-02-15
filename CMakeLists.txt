@@ -82,6 +82,7 @@ target_sources(AlgoNebula PRIVATE
     src/PluginEditor.cpp
     src/ui/NebulaLookAndFeel.cpp
     src/ui/NebulaColours.cpp
+    src/engine/GameOfLife.cpp
 )
 
 # --- Include Directories ---
@@ -133,20 +134,15 @@ target_link_libraries(AlgoNebula
 )
 
 # --- Headless Test Target ---
+# Engine tests are pure C++ (no JUCE dependency) for fast compilation.
 add_executable(AlgoNebulaTests
     test/HeadlessTest.cpp
+    src/engine/GameOfLife.cpp
 )
 
 target_include_directories(AlgoNebulaTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(AlgoNebulaTests PRIVATE
-    juce::juce_core
-    juce::juce_audio_basics
-    juce::juce_dsp
-)
+target_compile_features(AlgoNebulaTests PRIVATE cxx_std_17)
 
-target_compile_definitions(AlgoNebulaTests PRIVATE
-    JUCE_STANDALONE_APPLICATION=1
-)
