@@ -1,0 +1,27 @@
+# Build artifacts
+build/
+out/
+releases/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Dependencies (fetched by CMake)
+_deps/
+
+# Binary resources (generated)
+JuceLibraryCode/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets
+*.env
+*.pem
+*.key
+credentials.json

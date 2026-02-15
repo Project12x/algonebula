@@ -1,0 +1,6 @@
+# Exclude build artifacts and dependencies from language server indexing
+build/
+out/
+_deps/
+releases/
+resources/fonts/
