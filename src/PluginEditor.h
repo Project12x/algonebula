@@ -1,11 +1,11 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "ui/GridComponent.h"
 #include "ui/NebulaLookAndFeel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
-/// AlgoNebula editor — Phase 1 skeleton with resizable dark panel,
-/// Nebula LookAndFeel, CPU meter, and algorithm/scale selectors.
+/// AlgoNebula editor — Phase 4.5 with grid visualization, full synth controls.
 class AlgoNebulaEditor : public juce::AudioProcessorEditor,
                          private juce::Timer {
 public:
@@ -18,39 +18,85 @@ public:
 private:
   void timerCallback() override;
 
-  AlgoNebulaProcessor &processor;
+  // Helper to create a labeled rotary knob
+  struct LabeledKnob {
+    juce::Slider slider;
+    juce::Label label;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
+        attach;
+  };
 
+  // Helper to create a labeled combo box
+  struct LabeledCombo {
+    juce::ComboBox combo;
+    juce::Label label;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
+        attach;
+  };
+
+  void setupKnob(LabeledKnob &knob, const juce::String &labelText,
+                 const juce::String &paramID);
+  void setupCombo(LabeledCombo &combo, const juce::String &labelText,
+                  const juce::String &paramID);
+  void layoutKnobRow(juce::Rectangle<int> area,
+                     std::initializer_list<LabeledKnob *> knobs);
+  void layoutComboRow(juce::Rectangle<int> area,
+                      std::initializer_list<LabeledCombo *> combos);
+
+  AlgoNebulaProcessor &processor;
   NebulaLookAndFeel nebulaLnF;
 
-  // --- Controls ---
-  juce::Slider masterVolumeSlider;
-  juce::Label masterVolumeLabel;
+  // --- Grid ---
+  GridComponent gridComponent;
 
-  juce::ComboBox algorithmSelector;
-  juce::Label algorithmLabel;
+  // --- Top selectors ---
+  LabeledCombo algorithmCombo;
+  LabeledCombo scaleCombo;
+  LabeledCombo keyCombo;
+  LabeledCombo waveshapeCombo;
 
-  juce::ComboBox scaleSelector;
-  juce::Label scaleLabel;
+  // --- Clock ---
+  LabeledCombo clockDivCombo;
+  LabeledKnob swingKnob;
 
-  juce::ComboBox keySelector;
-  juce::Label keyLabel;
+  // --- Envelope ---
+  LabeledKnob attackKnob;
+  LabeledKnob holdKnob;
+  LabeledKnob decayKnob;
+  LabeledKnob sustainKnob;
+  LabeledKnob releaseKnob;
 
-  juce::ComboBox waveshapeSelector;
-  juce::Label waveshapeLabel;
+  // --- Filter ---
+  LabeledKnob filterCutoffKnob;
+  LabeledKnob filterResKnob;
+  LabeledCombo filterModeCombo;
 
+  // --- Mix ---
+  LabeledKnob noiseLevelKnob;
+  LabeledKnob subLevelKnob;
+  LabeledCombo subOctaveCombo;
+
+  // --- Tuning ---
+  LabeledCombo tuningCombo;
+  LabeledKnob refPitchKnob;
+
+  // --- Ambient ---
+  LabeledKnob droneSustainKnob;
+  LabeledKnob noteProbKnob;
+  LabeledKnob gateTimeKnob;
+
+  // --- Humanize ---
+  LabeledKnob strumSpreadKnob;
+  LabeledKnob melodicInertiaKnob;
+  LabeledKnob roundRobinKnob;
+  LabeledKnob velHumanizeKnob;
+
+  // --- Global ---
+  LabeledKnob masterVolumeKnob;
+  LabeledKnob voiceCountKnob;
+
+  // --- Status ---
   juce::Label cpuMeterLabel;
-
-  // --- APVTS Attachments ---
-  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
-      masterVolumeAttach;
-  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-      algorithmAttach;
-  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-      scaleAttach;
-  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-      keyAttach;
-  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-      waveshapeAttach;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

@@ -2,105 +2,117 @@
 
 //==============================================================================
 AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
-    : AudioProcessorEditor(p), processor(p) {
+    : AudioProcessorEditor(p), processor(p), gridComponent(p) {
   setLookAndFeel(&nebulaLnF);
 
-  // --- Resizable with aspect ratio ---
+  // --- Resizable ---
   setResizable(true, true);
-  setResizeLimits(900, 600, 1920, 1280);
-  getConstrainer()->setFixedAspectRatio(3.0 / 2.0);
-  setSize(900, 600);
+  setResizeLimits(1000, 700, 1920, 1280);
+  getConstrainer()->setFixedAspectRatio(10.0 / 7.0);
+  setSize(1000, 700);
 
-  // --- Master Volume (rotary) ---
-  masterVolumeSlider.setSliderStyle(juce::Slider::Rotary);
-  masterVolumeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  masterVolumeSlider.setPopupDisplayEnabled(true, true, this);
-  addAndMakeVisible(masterVolumeSlider);
+  // --- Grid ---
+  addAndMakeVisible(gridComponent);
 
-  masterVolumeLabel.setText("Volume", juce::dontSendNotification);
-  masterVolumeLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(masterVolumeLabel);
+  // --- Top selectors ---
+  setupCombo(algorithmCombo, "Algorithm", "algorithm");
+  setupCombo(scaleCombo, "Scale", "scale");
+  setupCombo(keyCombo, "Key", "key");
+  setupCombo(waveshapeCombo, "Wave", "waveshape");
 
-  masterVolumeAttach =
-      std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-          processor.getAPVTS(), "masterVolume", masterVolumeSlider);
+  // --- Clock ---
+  setupCombo(clockDivCombo, "Clock", "clockDiv");
+  setupKnob(swingKnob, "Swing", "swing");
 
-  // --- Algorithm Selector ---
-  auto *algoParam = dynamic_cast<juce::AudioParameterChoice *>(
-      processor.getAPVTS().getParameter("algorithm"));
-  if (algoParam != nullptr)
-    algorithmSelector.addItemList(algoParam->choices, 1);
-  addAndMakeVisible(algorithmSelector);
+  // --- Envelope ---
+  setupKnob(attackKnob, "Atk", "attack");
+  setupKnob(holdKnob, "Hold", "hold");
+  setupKnob(decayKnob, "Dcy", "decay");
+  setupKnob(sustainKnob, "Sus", "sustain");
+  setupKnob(releaseKnob, "Rel", "release");
 
-  algorithmLabel.setText("Algorithm", juce::dontSendNotification);
-  algorithmLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(algorithmLabel);
+  // --- Filter ---
+  setupKnob(filterCutoffKnob, "Cutoff", "filterCutoff");
+  setupKnob(filterResKnob, "Reso", "filterRes");
+  setupCombo(filterModeCombo, "Filter", "filterMode");
 
-  algorithmAttach =
-      std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-          processor.getAPVTS(), "algorithm", algorithmSelector);
+  // --- Mix ---
+  setupKnob(noiseLevelKnob, "Noise", "noiseLevel");
+  setupKnob(subLevelKnob, "Sub", "subLevel");
+  setupCombo(subOctaveCombo, "Sub Oct", "subOctave");
 
-  // --- Scale Selector ---
-  auto *scaleParam = dynamic_cast<juce::AudioParameterChoice *>(
-      processor.getAPVTS().getParameter("scale"));
-  if (scaleParam != nullptr)
-    scaleSelector.addItemList(scaleParam->choices, 1);
-  addAndMakeVisible(scaleSelector);
+  // --- Tuning ---
+  setupCombo(tuningCombo, "Tuning", "tuning");
+  setupKnob(refPitchKnob, "A4 Hz", "refPitch");
 
-  scaleLabel.setText("Scale", juce::dontSendNotification);
-  scaleLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(scaleLabel);
+  // --- Ambient ---
+  setupKnob(droneSustainKnob, "Drone", "droneSustain");
+  setupKnob(noteProbKnob, "Prob", "noteProbability");
+  setupKnob(gateTimeKnob, "Gate", "gateTime");
 
-  scaleAttach =
-      std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-          processor.getAPVTS(), "scale", scaleSelector);
+  // --- Humanize ---
+  setupKnob(strumSpreadKnob, "Strum", "strumSpread");
+  setupKnob(melodicInertiaKnob, "Inertia", "melodicInertia");
+  setupKnob(roundRobinKnob, "RndRbn", "roundRobin");
+  setupKnob(velHumanizeKnob, "VelHum", "velocityHumanize");
 
-  // --- Key Selector ---
-  auto *keyParam = dynamic_cast<juce::AudioParameterChoice *>(
-      processor.getAPVTS().getParameter("key"));
-  if (keyParam != nullptr)
-    keySelector.addItemList(keyParam->choices, 1);
-  addAndMakeVisible(keySelector);
-
-  keyLabel.setText("Key", juce::dontSendNotification);
-  keyLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(keyLabel);
-
-  keyAttach =
-      std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-          processor.getAPVTS(), "key", keySelector);
-
-  // --- Waveshape Selector ---
-  auto *waveParam = dynamic_cast<juce::AudioParameterChoice *>(
-      processor.getAPVTS().getParameter("waveshape"));
-  if (waveParam != nullptr)
-    waveshapeSelector.addItemList(waveParam->choices, 1);
-  addAndMakeVisible(waveshapeSelector);
-
-  waveshapeLabel.setText("Wave", juce::dontSendNotification);
-  waveshapeLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(waveshapeLabel);
-
-  waveshapeAttach =
-      std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-          processor.getAPVTS(), "waveshape", waveshapeSelector);
+  // --- Global ---
+  setupKnob(masterVolumeKnob, "Volume", "masterVolume");
+  setupKnob(voiceCountKnob, "Voices", "voiceCount");
 
   // --- CPU Meter ---
-  cpuMeterLabel.setFont(nebulaLnF.getMonoFont(12.0f));
+  cpuMeterLabel.setFont(nebulaLnF.getMonoFont(11.0f));
   cpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
   cpuMeterLabel.setJustificationType(juce::Justification::centredRight);
   cpuMeterLabel.setText("CPU: 0.0%", juce::dontSendNotification);
   addAndMakeVisible(cpuMeterLabel);
 
-  // Start CPU meter refresh (10 Hz)
   startTimerHz(10);
 }
 
 AlgoNebulaEditor::~AlgoNebulaEditor() { setLookAndFeel(nullptr); }
 
 //==============================================================================
+void AlgoNebulaEditor::setupKnob(LabeledKnob &knob,
+                                 const juce::String &labelText,
+                                 const juce::String &paramID) {
+  knob.slider.setSliderStyle(juce::Slider::Rotary);
+  knob.slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  knob.slider.setPopupDisplayEnabled(true, true, this);
+  addAndMakeVisible(knob.slider);
+
+  knob.label.setText(labelText, juce::dontSendNotification);
+  knob.label.setJustificationType(juce::Justification::centred);
+  knob.label.setColour(juce::Label::textColourId, NebulaColours::text_normal);
+  addAndMakeVisible(knob.label);
+
+  knob.attach =
+      std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+          processor.getAPVTS(), paramID, knob.slider);
+}
+
+void AlgoNebulaEditor::setupCombo(LabeledCombo &combo,
+                                  const juce::String &labelText,
+                                  const juce::String &paramID) {
+  auto *param = dynamic_cast<juce::AudioParameterChoice *>(
+      processor.getAPVTS().getParameter(paramID));
+  if (param != nullptr)
+    combo.combo.addItemList(param->choices, 1);
+  addAndMakeVisible(combo.combo);
+
+  combo.label.setText(labelText, juce::dontSendNotification);
+  combo.label.setJustificationType(juce::Justification::centred);
+  combo.label.setColour(juce::Label::textColourId, NebulaColours::text_normal);
+  addAndMakeVisible(combo.label);
+
+  combo.attach =
+      std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+          processor.getAPVTS(), paramID, combo.combo);
+}
+
+//==============================================================================
 void AlgoNebulaEditor::paint(juce::Graphics &g) {
-  // Dark background with subtle gradient
+  // Dark gradient background
   juce::ColourGradient bgGradient(NebulaColours::bg_deepest, 0.0f, 0.0f,
                                   NebulaColours::bg_panel, 0.0f,
                                   static_cast<float>(getHeight()), false);
@@ -109,58 +121,230 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
 
   // Title
   g.setColour(NebulaColours::text_bright);
-  g.setFont(nebulaLnF.getInterFont(24.0f));
-  g.drawText("Algo Nebula", 20, 10, 300, 40, juce::Justification::centredLeft);
+  g.setFont(nebulaLnF.getInterFont(22.0f));
+  g.drawText("Algo Nebula", 16, 8, 200, 30, juce::Justification::centredLeft);
 
-  // Version badge
+  // Version
   g.setFont(nebulaLnF.getMonoFont(10.0f));
   g.setColour(NebulaColours::text_dim);
-  g.drawText("v0.1.0", 20, 42, 100, 16, juce::Justification::centredLeft);
+  g.drawText("v0.4.0", 16, 32, 80, 14, juce::Justification::centredLeft);
 
-  // Divider below header
+  // Section labels
+  auto drawSectionLabel = [&](const juce::String &text, int x, int y) {
+    g.setFont(nebulaLnF.getInterFont(11.0f));
+    g.setColour(NebulaColours::accent1);
+    g.drawText(text, x, y, 200, 14, juce::Justification::centredLeft);
+  };
+
+  const int margin = 16;
+  const int headerH = 50;
+  const int selectorRowH = 50;
+  const int gridBottom = headerH + selectorRowH + 10;
+  const int controlsAreaLeft = static_cast<int>(getWidth() * 0.52f);
+
+  // Right-side section labels
+  drawSectionLabel("ENVELOPE", controlsAreaLeft, gridBottom);
+  drawSectionLabel("FILTER", controlsAreaLeft, gridBottom + 85);
+  drawSectionLabel("MIX", controlsAreaLeft, gridBottom + 170);
+
+  // Bottom sections
+  int bottomY = static_cast<int>(getHeight() * 0.72f);
+  drawSectionLabel("CLOCK", margin, bottomY);
+  drawSectionLabel("TUNING", margin + 180, bottomY);
+  drawSectionLabel("AMBIENT", margin + 360, bottomY);
+  drawSectionLabel("HUMANIZE", margin + 560, bottomY);
+
+  // Dividers
   g.setColour(NebulaColours::divider);
-  g.drawLine(20.0f, 65.0f, static_cast<float>(getWidth() - 20), 65.0f, 1.0f);
+  g.drawLine(static_cast<float>(margin), headerH - 2.0f,
+             static_cast<float>(getWidth() - margin), headerH - 2.0f, 1.0f);
 }
 
+//==============================================================================
 void AlgoNebulaEditor::resized() {
-  auto area = getLocalBounds().reduced(20);
-  area.removeFromTop(70); // Below header
+  const int margin = 16;
+  const int headerH = 50;
+  const int labelH = 14;
+  const int knobSize = 52;
+  const int comboH = 24;
 
-  // Top row: selectors
-  auto topRow = area.removeFromTop(60);
-  const int selectorWidth = (topRow.getWidth() - 30) / 4;
+  auto area = getLocalBounds();
 
-  auto algoArea = topRow.removeFromLeft(selectorWidth);
-  topRow.removeFromLeft(10);
-  auto scaleArea = topRow.removeFromLeft(selectorWidth);
-  topRow.removeFromLeft(10);
-  auto keyArea = topRow.removeFromLeft(selectorWidth);
-  topRow.removeFromLeft(10);
-  auto waveArea = topRow;
+  // --- Header + CPU meter ---
+  cpuMeterLabel.setBounds(getWidth() - 110, 12, 94, 14);
 
-  algorithmLabel.setBounds(algoArea.removeFromTop(18));
-  algorithmSelector.setBounds(algoArea.reduced(0, 4));
+  // --- Top selector row ---
+  auto selectorRow = area.removeFromTop(headerH).reduced(margin, 0);
+  selectorRow.removeFromTop(4);
+  const int comboW = (selectorRow.getWidth() - 30) / 4;
 
-  scaleLabel.setBounds(scaleArea.removeFromTop(18));
-  scaleSelector.setBounds(scaleArea.reduced(0, 4));
+  auto layoutOneCombo = [&](LabeledCombo &cb, juce::Rectangle<int> bounds) {
+    cb.label.setBounds(bounds.removeFromTop(labelH));
+    bounds.removeFromTop(2);
+    cb.combo.setBounds(bounds.withHeight(comboH));
+  };
 
-  keyLabel.setBounds(keyArea.removeFromTop(18));
-  keySelector.setBounds(keyArea.reduced(0, 4));
+  auto a1 = selectorRow.removeFromLeft(comboW);
+  selectorRow.removeFromLeft(10);
+  auto a2 = selectorRow.removeFromLeft(comboW);
+  selectorRow.removeFromLeft(10);
+  auto a3 = selectorRow.removeFromLeft(comboW);
+  selectorRow.removeFromLeft(10);
+  auto a4 = selectorRow;
 
-  waveshapeLabel.setBounds(waveArea.removeFromTop(18));
-  waveshapeSelector.setBounds(waveArea.reduced(0, 4));
+  layoutOneCombo(algorithmCombo, a1);
+  layoutOneCombo(scaleCombo, a2);
+  layoutOneCombo(keyCombo, a3);
+  layoutOneCombo(waveshapeCombo, a4);
 
-  area.removeFromTop(20);
+  area.removeFromTop(6);
 
-  // Volume knob (bottom-right)
-  const int knobSize = 80;
-  auto bottomRight =
-      area.removeFromBottom(knobSize + 20).removeFromRight(knobSize + 20);
-  masterVolumeLabel.setBounds(bottomRight.removeFromBottom(18));
-  masterVolumeSlider.setBounds(bottomRight);
+  // --- Middle area: grid (left) + synth controls (right) ---
+  const int controlsW = static_cast<int>(getWidth() * 0.48f);
+  auto middleArea = area.removeFromTop(static_cast<int>(getHeight() * 0.55f));
 
-  // CPU meter (bottom-left)
-  cpuMeterLabel.setBounds(getWidth() - 120, getHeight() - 24, 100, 16);
+  // Grid takes left side
+  auto gridArea = middleArea.removeFromLeft(getWidth() - controlsW - margin)
+                      .reduced(margin, 4);
+  gridComponent.setBounds(gridArea);
+
+  // Right side controls
+  auto ctrlArea = middleArea.reduced(4, 0);
+
+  // Helper for laying out a row of knobs
+  auto layoutKnobs = [&](juce::Rectangle<int> row,
+                         std::initializer_list<LabeledKnob *> knobs) {
+    int n = static_cast<int>(knobs.size());
+    int kw = row.getWidth() / n;
+    for (auto *k : knobs) {
+      auto cell = row.removeFromLeft(kw);
+      k->label.setBounds(cell.removeFromBottom(labelH));
+      int sz = std::min(knobSize, cell.getWidth());
+      k->slider.setBounds(
+          cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+    }
+  };
+
+  // Envelope section (5 knobs)
+  auto envArea = ctrlArea.removeFromTop(14); // label space
+  envArea = ctrlArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(envArea,
+              {&attackKnob, &holdKnob, &decayKnob, &sustainKnob, &releaseKnob});
+
+  ctrlArea.removeFromTop(8);
+
+  // Filter section (2 knobs + combo)
+  ctrlArea.removeFromTop(14); // label space
+  auto filterRow = ctrlArea.removeFromTop(knobSize + labelH + 4);
+  int filterItemW = filterRow.getWidth() / 3;
+  {
+    auto cell = filterRow.removeFromLeft(filterItemW);
+    filterCutoffKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    filterCutoffKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = filterRow.removeFromLeft(filterItemW);
+    filterResKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    filterResKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = filterRow;
+    filterModeCombo.label.setBounds(cell.removeFromTop(labelH));
+    cell.removeFromTop(4);
+    filterModeCombo.combo.setBounds(cell.withHeight(comboH).reduced(4, 0));
+  }
+
+  ctrlArea.removeFromTop(8);
+
+  // Mix section (2 knobs + combo)
+  ctrlArea.removeFromTop(14); // label space
+  auto mixRow = ctrlArea.removeFromTop(knobSize + labelH + 4);
+  int mixItemW = mixRow.getWidth() / 3;
+  {
+    auto cell = mixRow.removeFromLeft(mixItemW);
+    noiseLevelKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    noiseLevelKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = mixRow.removeFromLeft(mixItemW);
+    subLevelKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    subLevelKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = mixRow;
+    subOctaveCombo.label.setBounds(cell.removeFromTop(labelH));
+    cell.removeFromTop(4);
+    subOctaveCombo.combo.setBounds(cell.withHeight(comboH).reduced(4, 0));
+  }
+
+  // --- Bottom area: Clock | Tuning | Ambient | Humanize | Global ---
+  area.removeFromTop(4);
+  auto bottomArea = area.reduced(margin, 0);
+
+  // Clock section
+  int sectionW = bottomArea.getWidth() / 5;
+  ctrlArea.removeFromTop(14); // for label
+  auto clockArea = bottomArea.removeFromLeft(sectionW);
+  clockArea.removeFromTop(14); // label gap
+  auto clockKnobRow = clockArea.removeFromTop(knobSize + labelH + 4);
+  {
+    auto cell = clockKnobRow.removeFromLeft(clockKnobRow.getWidth() / 2);
+    clockDivCombo.label.setBounds(cell.removeFromTop(labelH));
+    cell.removeFromTop(2);
+    clockDivCombo.combo.setBounds(cell.withHeight(comboH).reduced(2, 0));
+  }
+  {
+    auto cell = clockKnobRow;
+    swingKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    swingKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+
+  // Tuning section
+  auto tuneArea = bottomArea.removeFromLeft(sectionW);
+  tuneArea.removeFromTop(14);
+  auto tuneRow = tuneArea.removeFromTop(knobSize + labelH + 4);
+  {
+    auto cell = tuneRow.removeFromLeft(tuneRow.getWidth() / 2);
+    tuningCombo.label.setBounds(cell.removeFromTop(labelH));
+    cell.removeFromTop(2);
+    tuningCombo.combo.setBounds(cell.withHeight(comboH).reduced(2, 0));
+  }
+  {
+    auto cell = tuneRow;
+    refPitchKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    refPitchKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+
+  // Ambient section (3 knobs)
+  auto ambArea = bottomArea.removeFromLeft(sectionW);
+  ambArea.removeFromTop(14);
+  auto ambRow = ambArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(ambRow, {&droneSustainKnob, &noteProbKnob, &gateTimeKnob});
+
+  // Humanize section (4 knobs)
+  auto humArea = bottomArea.removeFromLeft(sectionW);
+  humArea.removeFromTop(14);
+  auto humRow = humArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(humRow, {&strumSpreadKnob, &melodicInertiaKnob, &roundRobinKnob,
+                       &velHumanizeKnob});
+
+  // Global section (volume + voices)
+  auto globalArea = bottomArea;
+  globalArea.removeFromTop(14);
+  auto globalRow = globalArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(globalRow, {&masterVolumeKnob, &voiceCountKnob});
 }
 
 //==============================================================================
@@ -169,7 +353,6 @@ void AlgoNebulaEditor::timerCallback() {
   cpuMeterLabel.setText(juce::String("CPU: ") + juce::String(cpu, 1) + "%",
                         juce::dontSendNotification);
 
-  // Color based on load
   if (cpu > 80.0f)
     cpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::danger);
   else if (cpu > 50.0f)
