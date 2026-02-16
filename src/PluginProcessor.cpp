@@ -98,8 +98,46 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::NormalisableRange<float>(0.001f, 10.0f, 0.001f, 0.3f), 0.5f));
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("hold", 1), "Hold",
+      juce::NormalisableRange<float>(0.0f, 2.0f, 0.001f, 0.5f), 0.0f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("decay", 1), "Decay",
+      juce::NormalisableRange<float>(0.001f, 10.0f, 0.001f, 0.3f), 0.5f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("sustain", 1), "Sustain",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.7f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("release", 1), "Release",
       juce::NormalisableRange<float>(0.001f, 10.0f, 0.001f, 0.3f), 3.0f));
+
+  // --- Filter ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("filterCutoff", 1), "Filter Cutoff",
+      juce::NormalisableRange<float>(20.0f, 20000.0f, 0.1f, 0.3f), 8000.0f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("filterRes", 1), "Filter Resonance",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("filterMode", 1), "Filter Mode",
+      juce::StringArray{"Low Pass", "High Pass", "Band Pass", "Notch"}, 0));
+
+  // --- Noise + Sub ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("noiseLevel", 1), "Noise Level",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("subLevel", 1), "Sub Level",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("subOctave", 1), "Sub Octave",
+      juce::StringArray{"-1 Oct", "-2 Oct"}, 0));
 
   // --- Tuning ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -139,6 +177,10 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
 
   // Pre-compute tuning table
   tuning.setSystem(Microtuning::System::TwelveTET, 440.0f);
+
+  // Initialize voices
+  for (int i = 0; i < kMaxVoices; ++i)
+    voices[i].reset();
 }
 
 void AlgoNebulaProcessor::releaseResources() {
@@ -164,14 +206,129 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     buffer.clear(ch, 0, numSamples);
 
-  // Clock-driven engine stepping
+  // Clock-driven engine stepping + voice triggering
+  stepTriggeredThisBlock = false;
   for (int i = 0; i < numSamples; ++i) {
     if (clock.tick()) {
       engine.step();
+      stepTriggeredThisBlock = true;
     }
   }
 
-  // TODO Phase 5: Quantizer -> Voices -> Stereo Mix -> Output
+  // On step: scan grid for active cells, map to notes, trigger voices
+  if (stepTriggeredThisBlock) {
+    // Read params
+    auto waveshapeIdx =
+        static_cast<int>(apvts.getRawParameterValue("waveshape")->load());
+    auto scaleIdx =
+        static_cast<int>(apvts.getRawParameterValue("scale")->load());
+    auto keyIdx = static_cast<int>(apvts.getRawParameterValue("key")->load());
+    float attack = apvts.getRawParameterValue("attack")->load();
+    float hold = apvts.getRawParameterValue("hold")->load();
+    float decay = apvts.getRawParameterValue("decay")->load();
+    float sustain = apvts.getRawParameterValue("sustain")->load();
+    float release = apvts.getRawParameterValue("release")->load();
+    float filterCutoff = apvts.getRawParameterValue("filterCutoff")->load();
+    float filterRes = apvts.getRawParameterValue("filterRes")->load();
+    int filterModeIdx =
+        static_cast<int>(apvts.getRawParameterValue("filterMode")->load());
+    float noiseLevel = apvts.getRawParameterValue("noiseLevel")->load();
+    float subLevel = apvts.getRawParameterValue("subLevel")->load();
+    int subOctIdx =
+        static_cast<int>(apvts.getRawParameterValue("subOctave")->load());
+    int maxVoices =
+        static_cast<int>(apvts.getRawParameterValue("voiceCount")->load());
+
+    quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
+
+    // Release all active voices (simple: retrigger each step)
+    for (int v = 0; v < kMaxVoices; ++v) {
+      if (voices[v].isActive())
+        voices[v].noteOff();
+    }
+
+    // Scan grid columns for active cells, assign voices
+    const auto &grid = engine.getGrid();
+    int voicesUsed = 0;
+
+    for (int col = 0; col < grid.getCols() && voicesUsed < maxVoices; ++col) {
+      // Find highest active cell in this column
+      for (int row = 0; row < grid.getRows(); ++row) {
+        if (grid.getCell(row, col) != 0) {
+          int midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
+          float frequency = tuning.getFrequency(midiNote);
+
+          // Find a free voice (or steal quietest)
+          int voiceIdx = -1;
+          for (int v = 0; v < kMaxVoices; ++v) {
+            if (!voices[v].isActive()) {
+              voiceIdx = v;
+              break;
+            }
+          }
+          // Steal quietest if no free voice
+          if (voiceIdx < 0) {
+            double quietest = 999.0;
+            for (int v = 0; v < kMaxVoices; ++v) {
+              if (voices[v].getEnvelopeLevel() < quietest) {
+                quietest = voices[v].getEnvelopeLevel();
+                voiceIdx = v;
+              }
+            }
+          }
+
+          if (voiceIdx >= 0) {
+            auto shape = static_cast<PolyBLEPOscillator::Shape>(waveshapeIdx);
+            voices[voiceIdx].setWaveshape(shape);
+            voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
+                                               release, currentSampleRate);
+            voices[voiceIdx].setFilterCutoff(filterCutoff);
+            voices[voiceIdx].setFilterResonance(filterRes);
+            voices[voiceIdx].setFilterMode(
+                static_cast<SVFilter::Mode>(filterModeIdx));
+            voices[voiceIdx].setNoiseLevel(noiseLevel);
+            voices[voiceIdx].setSubLevel(subLevel);
+            voices[voiceIdx].setSubOctave(
+                static_cast<SubOscillator::OctaveMode>(subOctIdx));
+
+            // Pan based on column position (-1.0 to 1.0)
+            double pan = (grid.getCols() > 1)
+                             ? (2.0 * col / (grid.getCols() - 1) - 1.0)
+                             : 0.0;
+            voices[voiceIdx].setPan(pan);
+
+            voices[voiceIdx].noteOn(midiNote, 0.8, frequency,
+                                    currentSampleRate);
+            ++voicesUsed;
+          }
+          break; // One note per column
+        }
+      }
+    }
+  }
+
+  // Render all active voices per-sample
+  for (int sample = 0; sample < numSamples; ++sample) {
+    double mixL = 0.0;
+    double mixR = 0.0;
+    for (int v = 0; v < kMaxVoices; ++v) {
+      if (voices[v].isActive()) {
+        auto stereo = voices[v].renderNextSample();
+        mixL += stereo.left;
+        mixR += stereo.right;
+      }
+    }
+
+    // Gain staging: divide by max voices to prevent clipping
+    constexpr double voiceGain = 1.0 / kMaxVoices;
+    if (buffer.getNumChannels() >= 2) {
+      buffer.setSample(0, sample, static_cast<float>(mixL * voiceGain));
+      buffer.setSample(1, sample, static_cast<float>(mixR * voiceGain));
+    } else if (buffer.getNumChannels() >= 1) {
+      buffer.setSample(0, sample,
+                       static_cast<float>((mixL + mixR) * 0.5 * voiceGain));
+    }
+  }
 
   // Update grid snapshot for GL/UI thread (simple copy, no lock)
   gridSnapshot.copyFrom(engine.getGrid());

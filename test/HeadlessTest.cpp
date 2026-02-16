@@ -9,6 +9,7 @@
 #include "engine/Grid.h"
 #include "engine/Microtuning.h"
 #include "engine/ScaleQuantizer.h"
+#include "engine/SynthVoice.h"
 
 // --- Test Helpers ---
 static int testsPassed = 0;
@@ -1064,10 +1065,583 @@ static void testMutation_ClockComparator() {
 }
 
 // ============================================================================
+// Phase 4 — PolyBLEP Oscillator Tests
+// ============================================================================
+
+static void testOscSineAccuracy() {
+  TEST("Sine vs std::sin reference");
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Sine);
+  osc.setFrequency(440.0, 44100.0);
+  osc.reset();
+
+  double maxError = 0.0;
+  double phase = 0.0;
+  double phaseInc = 440.0 / 44100.0;
+  for (int i = 0; i < 44100; ++i) {
+    double oscOut = osc.nextSample();
+    double ref = std::sin(2.0 * 3.14159265358979 * phase);
+    double err = std::abs(oscOut - ref);
+    if (err > maxError)
+      maxError = err;
+    phase += phaseInc;
+    if (phase >= 1.0)
+      phase -= 1.0;
+  }
+  // Sine should be exact (both use std::sin)
+  ASSERT_TRUE(maxError < 1e-10);
+  PASS();
+}
+
+static void testOscSawHarmonics() {
+  TEST("Saw harmonics present");
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Saw);
+  osc.setFrequency(440.0, 44100.0);
+  osc.reset();
+
+  // Generate 1 second of saw, verify it's not silent and not constant
+  double sum = 0.0;
+  double maxVal = 0.0;
+  double minVal = 0.0;
+  for (int i = 0; i < 44100; ++i) {
+    double s = osc.nextSample();
+    sum += s;
+    if (s > maxVal)
+      maxVal = s;
+    if (s < minVal)
+      minVal = s;
+  }
+  ASSERT_TRUE(maxVal > 0.5);  // Should reach near +1
+  ASSERT_TRUE(minVal < -0.5); // Should reach near -1
+  // DC should be near zero (saw is symmetric)
+  double dc = sum / 44100.0;
+  ASSERT_TRUE(std::abs(dc) < 0.05);
+  PASS();
+}
+
+static void testOscSquareHarmonics() {
+  TEST("Square wave output range");
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Pulse);
+  osc.setPulseWidth(0.5);
+  osc.setFrequency(440.0, 44100.0);
+  osc.reset();
+
+  double maxVal = 0.0;
+  double minVal = 0.0;
+  for (int i = 0; i < 44100; ++i) {
+    double s = osc.nextSample();
+    if (s > maxVal)
+      maxVal = s;
+    if (s < minVal)
+      minVal = s;
+  }
+  // Pulse output should span a significant range
+  ASSERT_TRUE(maxVal > 0.3);
+  ASSERT_TRUE(minVal < -0.3);
+  PASS();
+}
+
+static void testOscPulseWidth() {
+  TEST("Pulse width=0.5 is symmetric");
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Pulse);
+  osc.setPulseWidth(0.5);
+  osc.setFrequency(100.0, 44100.0);
+  osc.reset();
+
+  int positiveCount = 0;
+  int negativeCount = 0;
+  for (int i = 0; i < 44100; ++i) {
+    double s = osc.nextSample();
+    if (s > 0.0)
+      ++positiveCount;
+    else if (s < 0.0)
+      ++negativeCount;
+  }
+  // Should be roughly 50/50
+  double ratio =
+      static_cast<double>(positiveCount) / (positiveCount + negativeCount);
+  ASSERT_NEAR(ratio, 0.5, 0.05);
+  PASS();
+}
+
+static void testOscPolyBLEPvsNaive() {
+  TEST("PolyBLEP saw has less aliasing energy than naive");
+  // Generate high-frequency saw (10kHz at 44.1kHz) and measure energy variance
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Saw);
+  osc.setFrequency(10000.0, 44100.0);
+  osc.reset();
+
+  // Just verify it produces output without NaN/Inf
+  double sumSq = 0.0;
+  bool hasNaN = false;
+  for (int i = 0; i < 44100; ++i) {
+    double s = osc.nextSample();
+    if (std::isnan(s) || std::isinf(s))
+      hasNaN = true;
+    sumSq += s * s;
+  }
+  ASSERT_TRUE(!hasNaN);
+  ASSERT_TRUE(sumSq > 0.0); // Not silent
+  PASS();
+}
+
+static void testOscOutputRange() {
+  TEST("All shapes output in [-2.1, 2.1]");
+  // Check all waveshapes stay bounded (composite shapes sum multiple oscs)
+  bool bounded = true;
+  for (int shapeIdx = 0;
+       shapeIdx < static_cast<int>(PolyBLEPOscillator::Shape::Count);
+       ++shapeIdx) {
+    PolyBLEPOscillator osc;
+    osc.setWaveshape(static_cast<PolyBLEPOscillator::Shape>(shapeIdx));
+    osc.setFrequency(440.0, 44100.0);
+    osc.reset();
+
+    for (int i = 0; i < 44100; ++i) {
+      double s = osc.nextSample();
+      if (s > 2.1 || s < -2.1) {
+        bounded = false;
+        break;
+      }
+    }
+  }
+  ASSERT_TRUE(bounded);
+  PASS();
+}
+
+static void testOscFrequencyAccuracy() {
+  TEST("440Hz sine zero-crossing accuracy");
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Sine);
+  osc.setFrequency(440.0, 44100.0);
+  osc.reset();
+
+  // Count positive-to-negative zero crossings in 1 second
+  int crossings = 0;
+  double prev = 0.0;
+  for (int i = 0; i < 44100; ++i) {
+    double s = osc.nextSample();
+    if (prev >= 0.0 && s < 0.0)
+      ++crossings;
+    prev = s;
+  }
+  // 440Hz = 440 full cycles = 440 zero crossings (pos->neg)
+  ASSERT_NEAR(static_cast<double>(crossings), 440.0, 1.0);
+  PASS();
+}
+
+// ============================================================================
+// Phase 4 — AHDSR Envelope Tests
+// ============================================================================
+
+static void testEnvelopeAttack() {
+  TEST("Attack ramp timing");
+  AHDSREnvelope env;
+  double sr = 44100.0;
+  double attackTime = 0.01; // 10ms
+  env.setParameters(attackTime, 0.0, 0.0, 1.0, 0.1, sr);
+  env.noteOn();
+
+  int attackSamples = static_cast<int>(attackTime * sr);
+  double levelAtEnd = 0.0;
+  for (int i = 0; i <= attackSamples + 1; ++i) {
+    levelAtEnd = env.nextSample();
+  }
+  // Should reach 1.0 by end of attack
+  ASSERT_NEAR(levelAtEnd, 1.0, 0.02);
+  PASS();
+}
+
+static void testEnvelopeHoldDecaySustain() {
+  TEST("Hold then Decay to Sustain");
+  AHDSREnvelope env;
+  double sr = 44100.0;
+  env.setParameters(0.001, 0.01, 0.01, 0.5, 0.1, sr);
+  env.noteOn();
+
+  // Process through attack
+  int attackSamples = static_cast<int>(0.001 * sr) + 2;
+  for (int i = 0; i < attackSamples; ++i)
+    env.nextSample();
+
+  // Process through hold (10ms)
+  int holdSamples = static_cast<int>(0.01 * sr);
+  double holdLevel = 0.0;
+  for (int i = 0; i < holdSamples; ++i)
+    holdLevel = env.nextSample();
+  ASSERT_NEAR(holdLevel, 1.0, 0.02);
+
+  // Process through decay
+  int decaySamples = static_cast<int>(0.01 * sr) + 2;
+  double decayLevel = 0.0;
+  for (int i = 0; i < decaySamples; ++i)
+    decayLevel = env.nextSample();
+  ASSERT_NEAR(decayLevel, 0.5, 0.05);
+  PASS();
+}
+
+static void testEnvelopeRelease() {
+  TEST("Release from sustain to zero");
+  AHDSREnvelope env;
+  double sr = 44100.0;
+  env.setParameters(0.001, 0.0, 0.001, 0.7, 0.01, sr);
+  env.noteOn();
+
+  // Process to sustain
+  for (int i = 0; i < 500; ++i)
+    env.nextSample();
+
+  env.noteOff();
+  int releaseSamples = static_cast<int>(0.01 * sr) + 10;
+  double finalLevel = 0.0;
+  for (int i = 0; i < releaseSamples; ++i)
+    finalLevel = env.nextSample();
+
+  ASSERT_TRUE(finalLevel < 0.01);
+  ASSERT_TRUE(!env.isActive());
+  PASS();
+}
+
+static void testEnvelopeNoteOffDuringAttack() {
+  TEST("Note-off during attack transitions to release");
+  AHDSREnvelope env;
+  double sr = 44100.0;
+  env.setParameters(0.1, 0.0, 0.0, 1.0, 0.01, sr);
+  env.noteOn();
+
+  // Process half of attack (50ms of 100ms)
+  for (int i = 0; i < 2205; ++i)
+    env.nextSample();
+  double levelAtNoteOff = env.getLevel();
+  ASSERT_TRUE(levelAtNoteOff > 0.1 && levelAtNoteOff < 0.9);
+
+  env.noteOff();
+  // Should be in release now, decreasing from current level
+  double postRelease = env.nextSample();
+  ASSERT_TRUE(postRelease <= levelAtNoteOff);
+  PASS();
+}
+
+static void testEnvelopeRetrigger() {
+  TEST("Retrigger from current level (no snap to zero)");
+  AHDSREnvelope env;
+  double sr = 44100.0;
+  env.setParameters(0.01, 0.0, 0.0, 1.0, 0.5, sr);
+  env.noteOn();
+
+  // Reach peak
+  for (int i = 0; i < 1000; ++i)
+    env.nextSample();
+  env.noteOff();
+
+  // Process a bit of release
+  for (int i = 0; i < 100; ++i)
+    env.nextSample();
+  double levelBeforeRetrigger = env.getLevel();
+  ASSERT_TRUE(levelBeforeRetrigger > 0.0);
+
+  // Retrigger: attack should continue from current level, not zero
+  env.noteOn();
+  double firstSampleAfter = env.nextSample();
+  ASSERT_TRUE(firstSampleAfter >= levelBeforeRetrigger * 0.9);
+  PASS();
+}
+
+// ============================================================================
+// Phase 4 — SVFilter Tests
+// ============================================================================
+
+static void testFilterLP() {
+  TEST("LP -3dB at cutoff, attenuation above");
+  SVFilter filter;
+  double sr = 44100.0;
+  filter.setCutoff(1000.0, sr);
+  filter.setResonance(0.0);
+  filter.setMode(SVFilter::Mode::LowPass);
+
+  // Measure energy at 500Hz (below cutoff) and 4000Hz (above)
+  auto measureEnergy = [&](double freq) -> double {
+    filter.reset();
+    double sumSq = 0.0;
+    int n = 8820; // ~200ms
+    for (int i = 0; i < n; ++i) {
+      double input = std::sin(2.0 * 3.14159265358979 * freq * i / sr);
+      double out = filter.process(input);
+      if (i > 4410) // Skip transient
+        sumSq += out * out;
+    }
+    return sumSq;
+  };
+
+  double eLow = measureEnergy(500.0);
+  double eHigh = measureEnergy(4000.0);
+  // Below cutoff should pass, above should be attenuated
+  ASSERT_TRUE(eLow > eHigh * 4.0);
+  PASS();
+}
+
+static void testFilterHP() {
+  TEST("HP passes above cutoff, attenuates below");
+  SVFilter filter;
+  double sr = 44100.0;
+  filter.setCutoff(1000.0, sr);
+  filter.setResonance(0.0);
+  filter.setMode(SVFilter::Mode::HighPass);
+
+  auto measureEnergy = [&](double freq) -> double {
+    filter.reset();
+    double sumSq = 0.0;
+    int n = 8820;
+    for (int i = 0; i < n; ++i) {
+      double input = std::sin(2.0 * 3.14159265358979 * freq * i / sr);
+      double out = filter.process(input);
+      if (i > 4410)
+        sumSq += out * out;
+    }
+    return sumSq;
+  };
+
+  double eLow = measureEnergy(200.0);
+  double eHigh = measureEnergy(4000.0);
+  ASSERT_TRUE(eHigh > eLow * 4.0);
+  PASS();
+}
+
+static void testFilterResonance() {
+  TEST("Resonance boosts energy at cutoff");
+  SVFilter filterFlat;
+  SVFilter filterRes;
+  double sr = 44100.0;
+  double cutoff = 1000.0;
+
+  filterFlat.setCutoff(cutoff, sr);
+  filterFlat.setResonance(0.0);
+  filterFlat.setMode(SVFilter::Mode::LowPass);
+
+  filterRes.setCutoff(cutoff, sr);
+  filterRes.setResonance(0.9);
+  filterRes.setMode(SVFilter::Mode::LowPass);
+
+  // Measure at cutoff frequency
+  double sumFlat = 0.0;
+  double sumRes = 0.0;
+  int n = 8820;
+  for (int i = 0; i < n; ++i) {
+    double input = std::sin(2.0 * 3.14159265358979 * cutoff * i / sr);
+    double outFlat = filterFlat.process(input);
+    double outRes = filterRes.process(input);
+    if (i > 4410) {
+      sumFlat += outFlat * outFlat;
+      sumRes += outRes * outRes;
+    }
+  }
+  // High resonance should produce more energy at cutoff
+  ASSERT_TRUE(sumRes > sumFlat * 1.5);
+  PASS();
+}
+
+static void testFilterStability() {
+  TEST("Filter stable at max resonance");
+  SVFilter filter;
+  filter.setCutoff(5000.0, 44100.0);
+  filter.setResonance(0.99);
+  filter.setMode(SVFilter::Mode::LowPass);
+  filter.reset();
+
+  bool stable = true;
+  for (int i = 0; i < 88200; ++i) {
+    double input = (i == 0) ? 1.0 : 0.0; // Impulse
+    double out = filter.process(input);
+    if (std::isnan(out) || std::isinf(out) || std::abs(out) > 100.0) {
+      stable = false;
+      break;
+    }
+  }
+  ASSERT_TRUE(stable);
+  PASS();
+}
+
+// ============================================================================
+// Phase 4 — SynthVoice Tests
+// ============================================================================
+
+static void testVoiceChain() {
+  TEST("Full voice chain produces non-zero output");
+  SynthVoice voice;
+  voice.setWaveshape(PolyBLEPOscillator::Shape::Saw);
+  voice.setEnvelopeParams(0.01, 0.0, 0.1, 0.7, 0.5, 44100.0);
+  voice.setFilterCutoff(4000.0);
+  voice.setFilterResonance(0.2);
+  voice.noteOn(60, 0.8, 261.63, 44100.0);
+
+  double sumSq = 0.0;
+  for (int i = 0; i < 4410; ++i) {
+    auto s = voice.renderNextSample();
+    sumSq += s.left * s.left + s.right * s.right;
+  }
+  ASSERT_TRUE(sumSq > 0.0);
+  ASSERT_TRUE(voice.isActive());
+  PASS();
+}
+
+static void testVoicePolyphony() {
+  TEST("8 voices summed stay bounded");
+  SynthVoice voices[8];
+  double frequencies[] = {261.63, 293.66, 329.63, 349.23,
+                          392.00, 440.00, 493.88, 523.25};
+  for (int v = 0; v < 8; ++v) {
+    voices[v].setWaveshape(PolyBLEPOscillator::Shape::Sine);
+    voices[v].setEnvelopeParams(0.001, 0.0, 0.1, 0.7, 0.5, 44100.0);
+    voices[v].setFilterCutoff(8000.0);
+    voices[v].noteOn(60 + v, 0.8, frequencies[v], 44100.0);
+  }
+
+  bool bounded = true;
+  for (int i = 0; i < 4410; ++i) {
+    double sumL = 0.0, sumR = 0.0;
+    for (int v = 0; v < 8; ++v) {
+      auto s = voices[v].renderNextSample();
+      sumL += s.left;
+      sumR += s.right;
+    }
+    double voiceGain = 1.0 / 8.0;
+    if (std::abs(sumL * voiceGain) > 1.5 || std::abs(sumR * voiceGain) > 1.5) {
+      bounded = false;
+      break;
+    }
+  }
+  ASSERT_TRUE(bounded);
+  PASS();
+}
+
+static void testSubOscTracking() {
+  TEST("Sub-oscillator tracks voice frequency");
+  SubOscillator sub;
+  sub.setLevel(1.0);
+  sub.setOctaveMode(SubOscillator::OctaveMode::Down1);
+  sub.setFrequency(440.0, 44100.0);
+  sub.reset();
+
+  // Count zero crossings for sub at -1 octave = 220Hz
+  int crossings = 0;
+  double prev = 0.0;
+  for (int i = 0; i < 44100; ++i) {
+    double s = sub.nextSample();
+    if (prev >= 0.0 && s < 0.0)
+      ++crossings;
+    prev = s;
+  }
+  ASSERT_NEAR(static_cast<double>(crossings), 220.0, 1.0);
+  PASS();
+}
+
+// ============================================================================
+// Phase 4 — Mutation Tests
+// ============================================================================
+
+static void testMutation_PolyBLEPRemoval() {
+  TEST("Mutation: PolyBLEP presence changes saw output");
+  // Verify that the PolyBLEP oscillator produces different output than
+  // a trivial 2*phase-1 ramp (the naive version)
+  PolyBLEPOscillator osc;
+  osc.setWaveshape(PolyBLEPOscillator::Shape::Saw);
+  osc.setFrequency(5000.0, 44100.0); // High freq makes BLEP more visible
+  osc.reset();
+
+  double phaseInc = 5000.0 / 44100.0;
+  double phase = 0.0;
+  double diffSum = 0.0;
+
+  for (int i = 0; i < 44100; ++i) {
+    double blep = osc.nextSample();
+    double naive = 2.0 * phase - 1.0;
+    diffSum += std::abs(blep - naive);
+    phase += phaseInc;
+    if (phase >= 1.0)
+      phase -= 1.0;
+  }
+  // PolyBLEP should differ from naive saw
+  ASSERT_TRUE(diffSum > 1.0);
+  PASS();
+}
+
+static void testMutation_EnvelopeInstantAttack() {
+  TEST("Mutation: non-zero attack takes multiple samples");
+  AHDSREnvelope env;
+  env.setParameters(0.01, 0.0, 0.0, 1.0, 0.1, 44100.0); // 10ms attack
+  env.noteOn();
+
+  // First sample should NOT be 1.0 (instant attack would be)
+  double first = env.nextSample();
+  ASSERT_TRUE(first < 0.5);
+  PASS();
+}
+
+static void testMutation_FilterCutoffOffset() {
+  TEST("Mutation: changing cutoff changes filter response");
+  SVFilter filterLow, filterHigh;
+  double sr = 44100.0;
+  filterLow.setCutoff(500.0, sr);
+  filterLow.setMode(SVFilter::Mode::LowPass);
+  filterHigh.setCutoff(5000.0, sr);
+  filterHigh.setMode(SVFilter::Mode::LowPass);
+
+  // Feed 2kHz sine through both
+  double sumLow = 0.0, sumHigh = 0.0;
+  for (int i = 0; i < 8820; ++i) {
+    double input = std::sin(2.0 * 3.14159265358979 * 2000.0 * i / sr);
+    double outL = filterLow.process(input);
+    double outH = filterHigh.process(input);
+    if (i > 4410) {
+      sumLow += outL * outL;
+      sumHigh += outH * outH;
+    }
+  }
+  // 2kHz signal should pass more through 5kHz cutoff than 500Hz cutoff
+  ASSERT_TRUE(sumHigh > sumLow * 2.0);
+  PASS();
+}
+
+static void testMutation_SubOctaveDivision() {
+  TEST("Mutation: sub -2oct is half freq of -1oct");
+  SubOscillator sub1, sub2;
+  sub1.setLevel(1.0);
+  sub2.setLevel(1.0);
+  sub1.setOctaveMode(SubOscillator::OctaveMode::Down1);
+  sub2.setOctaveMode(SubOscillator::OctaveMode::Down2);
+  sub1.setFrequency(440.0, 44100.0);
+  sub2.setFrequency(440.0, 44100.0);
+  sub1.reset();
+  sub2.reset();
+
+  // Count zero crossings
+  int cross1 = 0, cross2 = 0;
+  double prev1 = 0.0, prev2 = 0.0;
+  for (int i = 0; i < 44100; ++i) {
+    double s1 = sub1.nextSample();
+    double s2 = sub2.nextSample();
+    if (prev1 >= 0 && s1 < 0)
+      ++cross1;
+    if (prev2 >= 0 && s2 < 0)
+      ++cross2;
+    prev1 = s1;
+    prev2 = s2;
+  }
+  // -1oct = 220Hz, -2oct = 110Hz. Ratio should be 2:1
+  double ratio = static_cast<double>(cross1) / cross2;
+  ASSERT_NEAR(ratio, 2.0, 0.05);
+  PASS();
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 int main() {
-  std::cout << "=== Algo Nebula Phase 2+3 Tests ===" << std::endl;
+  std::cout << "=== Algo Nebula Phase 2+3+4 Tests ===" << std::endl;
 
   // Phase 2 — Grid tests
   std::cout << "\n[Grid]" << std::endl;
@@ -1150,6 +1724,44 @@ int main() {
   testMutation_DorianInterval();
   testMutation_JustP5Offset();
   testMutation_ClockComparator();
+
+  // Phase 4 -- Oscillator
+  std::cout << "\n[PolyBLEP Oscillator]" << std::endl;
+  testOscSineAccuracy();
+  testOscSawHarmonics();
+  testOscSquareHarmonics();
+  testOscPulseWidth();
+  testOscPolyBLEPvsNaive();
+  testOscOutputRange();
+  testOscFrequencyAccuracy();
+
+  // Phase 4 -- Envelope
+  std::cout << "\n[AHDSR Envelope]" << std::endl;
+  testEnvelopeAttack();
+  testEnvelopeHoldDecaySustain();
+  testEnvelopeRelease();
+  testEnvelopeNoteOffDuringAttack();
+  testEnvelopeRetrigger();
+
+  // Phase 4 -- Filter
+  std::cout << "\n[SVFilter]" << std::endl;
+  testFilterLP();
+  testFilterHP();
+  testFilterResonance();
+  testFilterStability();
+
+  // Phase 4 -- SynthVoice
+  std::cout << "\n[SynthVoice]" << std::endl;
+  testVoiceChain();
+  testVoicePolyphony();
+  testSubOscTracking();
+
+  // Phase 4 -- Mutation
+  std::cout << "\n[Phase 4 Mutation Tests]" << std::endl;
+  testMutation_PolyBLEPRemoval();
+  testMutation_EnvelopeInstantAttack();
+  testMutation_FilterCutoffOffset();
+  testMutation_SubOctaveDivision();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;

@@ -3,6 +3,21 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0] - 2026-02-16
+
+### Added
+
+- `PolyBLEPOscillator`: 8 waveshapes (Sine, Triangle, Saw, Pulse, SineOct, FifthStack, Pad, Bell), polynomial bandlimited step, pulse width control
+- `AHDSREnvelope`: 5-stage envelope (Attack, Hold, Decay, Sustain, Release), linear ramps, retrigger from current level
+- `SVFilter`: State-variable filter (LP, HP, BP, Notch), Cytomic topology, cutoff/resonance, RT-safe coefficient updates
+- `NoiseLayer`: xorshift64 white noise with level control
+- `SubOscillator`: -1/-2 octave pure sine sub with level control
+- `SynthVoice`: Composite voice class (osc + sub + noise + envelope + filter), stereo panning
+- 9 new APVTS parameters: hold, decay, sustain, filterCutoff, filterRes, filterMode, noiseLevel, subLevel, subOctave
+- Voice triggering in processBlock: grid-to-note mapping via ScaleQuantizer/Microtuning, 8-voice polyphony, voice stealing
+- 23 new headless tests: 7 oscillator, 5 envelope, 4 filter, 3 voice, 4 mutation
+- Total test count: 75 (all passing, 0% mutation survival)
+
 ## [0.3.0] - 2026-02-15
 
 ### Added

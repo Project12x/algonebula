@@ -63,6 +63,29 @@ All implementations must be allocation-free in `step()`.
 - Adjustable A4 reference (default 440Hz)
 - Pre-computed 128-note frequency table — O(1) RT lookup
 
+## Synth Voices (Phase 4)
+
+### PolyBLEPOscillator
+- 8 waveshapes: Sine, Triangle, Saw, Pulse + 4 composite (SineOct, FifthStack, Pad, Bell)
+- Polynomial bandlimited step (PolyBLEP) at discontinuities for anti-aliasing
+- Pulse width modulation control
+
+### AHDSREnvelope
+- 5-stage envelope: Attack -> Hold -> Decay -> Sustain -> Release
+- Linear ramps, retrigger from current level (no click artifacts)
+- Per-sample increment pre-computation for RT-safety
+
+### SVFilter
+- State-variable filter (Cytomic/Simper topology)
+- 4 modes: Low Pass, High Pass, Band Pass, Notch
+- Coefficients recalculated only on parameter change
+
+### SynthVoice
+- Composite: PolyBLEPOscillator + SubOscillator + NoiseLayer + AHDSREnvelope + SVFilter
+- 8-voice polyphony with quietest-voice stealing
+- Grid cells -> ScaleQuantizer -> Microtuning -> frequency
+- Stereo panning based on grid column position
+
 ## Thread Model
 - **Audio thread**: `processBlock()` — zero allocation, lock-free reads
 - **UI thread**: editor painting, parameter changes via APVTS (atomic), cell edits via SPSC queue

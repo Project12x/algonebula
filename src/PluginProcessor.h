@@ -12,13 +12,14 @@
 #include "engine/Grid.h"
 #include "engine/Microtuning.h"
 #include "engine/ScaleQuantizer.h"
+#include "engine/SynthVoice.h"
 
 // Forward declarations
 class NebulaLookAndFeel;
 
 //==============================================================================
 /// AlgoNebula processor — generative ambient synthesizer.
-/// Phase 3: Clock + ScaleQuantizer + Microtuning integrated.
+/// Phase 4: PolyBLEP synth voices + AHDSR + SVF filter.
 class AlgoNebulaProcessor : public juce::AudioProcessor {
 public:
   AlgoNebulaProcessor();
@@ -85,6 +86,11 @@ private:
   ClockDivider clock;
   ScaleQuantizer quantizer;
   Microtuning tuning;
+
+  // --- Synth Voices ---
+  static constexpr int kMaxVoices = 8;
+  SynthVoice voices[kMaxVoices];
+  bool stepTriggeredThisBlock = false;
 
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};

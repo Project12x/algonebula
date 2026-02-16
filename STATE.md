@@ -1,17 +1,17 @@
 # Project State
 
 ## Current Phase
-Phase 3 — Clock + ScaleQuantizer + Microtuning (`v0.3.0`)
+Phase 4 — PolyBLEP Synth Voices + AHDSR + SVF Filter (`v0.4.0`)
 
 ## Build Status
 - VST3: Builds successfully (Release)
 - Standalone: Builds successfully (Release)
-- Tests: 52/52 passing (pure C++, no JUCE dependency)
+- Tests: 75/75 passing (pure C++, no JUCE dependency)
 
 ## Key Classes
 | Class | File | Status |
 |-------|------|--------|
-| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Clock-driven stepping, engine + quantizer + tuning integrated |
+| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Voice triggering, 9 new APVTS params, processBlock integration |
 | `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | Dark UI with selectors, volume knob, CPU meter |
 | `NebulaLookAndFeel` | `src/ui/NebulaLookAndFeel.h/.cpp` | Gradient arc knobs, glow, Inter/JetBrains fonts |
 | `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens |
@@ -22,6 +22,12 @@ Phase 3 — Clock + ScaleQuantizer + Microtuning (`v0.3.0`)
 | `ScaleQuantizer` | `src/engine/ScaleQuantizer.h` | 15 scales, 12 root keys, O(1) array lookup |
 | `Microtuning` | `src/engine/Microtuning.h` | 12-TET / Just / Pythagorean, adjustable A4, 128-note tables |
 | `ClockDivider` | `src/engine/ClockDivider.h` | Integer sample counting, 6 divisions, swing (50-75%) |
+| `PolyBLEPOscillator` | `src/engine/PolyBLEPOscillator.h` | 8 waveshapes, polynomial bandlimited step, pulse width |
+| `AHDSREnvelope` | `src/engine/AHDSREnvelope.h` | 5-stage envelope, linear ramps, retrigger from current level |
+| `SVFilter` | `src/engine/SVFilter.h` | State-variable filter, 4 modes, Cytomic topology |
+| `NoiseLayer` | `src/engine/NoiseLayer.h` | xorshift64 white noise, level control |
+| `SubOscillator` | `src/engine/SubOscillator.h` | -1/-2 octave sine sub, level control |
+| `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan |
 
 ## Test Metrics
 - Grid tests: 9 (basics, wrapping, age, copy, equality)
@@ -34,4 +40,9 @@ Phase 3 — Clock + ScaleQuantizer + Microtuning (`v0.3.0`)
 - ClockDivider: 5 (quarter at 120BPM, all divisions, swing, no-swing, buffer accuracy)
 - Integration: 3 (clock drives GoL, quantizer+GoL, transport pause/resume)
 - Phase 3 mutation: 3 (Dorian interval, Just P5 offset, clock comparator)
-- Mutation survival rate: 0% (all 6 mutations caught across phases)
+- Oscillator: 7 (sine accuracy, saw/square range, pulse symmetry, anti-aliasing, output range, frequency accuracy)
+- Envelope: 5 (attack timing, hold/decay/sustain, release, note-off during attack, retrigger)
+- Filter: 4 (LP response, HP response, resonance, stability at max Q)
+- SynthVoice: 3 (full chain output, 8-voice polyphony, sub tracking)
+- Phase 4 mutation: 4 (PolyBLEP presence, instant attack, cutoff offset, sub octave division)
+- Mutation survival rate: 0% (all 10 mutations caught across phases)
