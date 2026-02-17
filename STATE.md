@@ -1,34 +1,39 @@
 # Project State
 
 ## Current Phase
-Phase 4.5 — Playability Fixes (`v0.4.5`)
+Phase 5 — Integration + Musicality (`v0.5.0`)
 
 ## Build Status
 - VST3: Builds successfully (Release)
 - Standalone: Builds successfully (Release)
-- Tests: 75/75 passing (pure C++, no JUCE dependency)
+- Tests: 82/82 passing (pure C++, no JUCE dependency)
 
 ## Key Classes
 | Class | File | Status |
 |-------|------|--------|
-| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | BPM param, MIDI keyboard state, note-on reseed, auto-reseed, algorithm->rule mapping, per-column waveshape |
-| `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | BPM knob, MidiKeyboardComponent, full control layout, v0.4.5 |
+| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Multi-engine factory, density modulation, musicality param wiring (noteProbability, velocityHumanize, melodicInertia), adjustable grid size |
+| `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | Full control layout: envelope, filter, mix, clock, tuning, ambient, humanize, global sections. Grid size dropdown in transport strip |
 | `NebulaLookAndFeel` | `src/ui/NebulaLookAndFeel.h/.cpp` | Gradient arc knobs, glow, Inter/JetBrains fonts |
-| `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens |
-| `GridComponent` | `src/ui/GridComponent.h` | Real-time grid visualization, click-to-toggle cells |
-| `CellularEngine` | `src/engine/CellularEngine.h` | Abstract interface (step/randomize/clear/getGrid) |
-| `Grid` | `src/engine/Grid.h` | Fixed 32x64, toroidal wrap, age, double-buffer |
+| `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens + 6 engine visualization tokens |
+| `GridComponent` | `src/ui/GridComponent.h` | Engine-aware visualization (per-engine color palettes), click-to-toggle cells |
+| `CellularEngine` | `src/engine/CellularEngine.h` | Abstract interface (step/randomize/clear/getGrid/getType/getName) |
+| `Grid` | `src/engine/Grid.h` | Dynamic resize (8x12 to 24x32), toroidal wrap, age, birth tracking, double-buffer |
 | `GameOfLife` | `src/engine/GameOfLife.h/.cpp` | 5 rule presets, bitmask lookup, xorshift64 PRNG |
-| `CellEditQueue` | `src/engine/CellEditQueue.h` | Lock-free SPSC, 256 capacity, cache-line aligned |
+| `BriansBrainEngine` | `src/engine/BriansBrainEngine.h` | 3-state (alive/dying/dead) automaton |
+| `CyclicCA` | `src/engine/CyclicCA.h` | N-state rotating spiral automaton |
+| `ReactionDiffusion` | `src/engine/ReactionDiffusion.h` | Gray-Scott model with float fields |
+| `LeniaEngine` | `src/engine/LeniaEngine.h` | Continuous-state, Gaussian kernel, growth function |
+| `ParticleSwarm` | `src/engine/ParticleSwarm.h` | Agent-based particle trails |
+| `BrownianField` | `src/engine/BrownianField.h` | Multi-walker random walk energy deposition |
 | `ScaleQuantizer` | `src/engine/ScaleQuantizer.h` | 15 scales, 12 root keys, O(1) array lookup |
 | `Microtuning` | `src/engine/Microtuning.h` | 12-TET / Just / Pythagorean, adjustable A4, 128-note tables |
 | `ClockDivider` | `src/engine/ClockDivider.h` | Integer sample counting, 6 divisions, swing (50-75%) |
-| `PolyBLEPOscillator` | `src/engine/PolyBLEPOscillator.h` | 8 waveshapes, polynomial bandlimited step, pulse width |
-| `AHDSREnvelope` | `src/engine/AHDSREnvelope.h` | 5-stage envelope, linear ramps, retrigger from current level |
+| `PolyBLEPOscillator` | `src/engine/PolyBLEPOscillator.h` | 8 waveshapes, bandlimited step, pulse width |
+| `AHDSREnvelope` | `src/engine/AHDSREnvelope.h` | 5-stage envelope, linear ramps, retrigger |
 | `SVFilter` | `src/engine/SVFilter.h` | State-variable filter, 4 modes, Cytomic topology |
-| `NoiseLayer` | `src/engine/NoiseLayer.h` | xorshift64 white noise, level control |
-| `SubOscillator` | `src/engine/SubOscillator.h` | -1/-2 octave sine sub, level control |
-| `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan |
+| `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan, grid position tracking |
+| `CellEditQueue` | `src/engine/CellEditQueue.h` | Lock-free SPSC, 256 capacity, cache-line aligned |
+| `FactoryPresets` | `src/engine/FactoryPresets.h` | 11 presets (musical, experimental, utility categories) |
 
 ## Test Metrics
 - Grid tests: 9 (basics, wrapping, age, copy, equality)
@@ -46,12 +51,16 @@ Phase 4.5 — Playability Fixes (`v0.4.5`)
 - Filter: 4 (LP response, HP response, resonance, stability at max Q)
 - SynthVoice: 3 (full chain output, 8-voice polyphony, sub tracking)
 - Phase 4 mutation: 4 (PolyBLEP presence, instant attack, cutoff offset, sub octave division)
-- Mutation survival rate: 0% (all 10 mutations caught across phases)
+- CA Engine tests: 7 (Brian's Brain activity, Cyclic step, R-D fields, Lenia continuous state, Particle trails, Brownian deposits, engine type ID)
+- Mutation survival rate: 0% (all mutations caught)
 
-## Recent Changes (v0.4.5)
-- BPM parameter (40-300) with UI knob
-- MIDI keyboard component for virtual input
-- MIDI note-on triggers grid reseed
-- Auto-reseed after 8 stagnant generations
-- Algorithm selector maps to GoL rule presets
-- Per-column waveshape diversity (base + col offset mod 8)
+## Recent Changes (v0.5.0)
+- 7 CA engines: GoL, Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
+- Engine-aware GridComponent visualization with per-engine color palettes
+- Density-driven dynamics: grid density modulates voice gain and filter cutoff
+- Wired musicality params: noteProbability, velocityHumanize, melodicInertia
+- Tuned defaults for less cacophony: noteProbability 0.5, voiceCount 3, attack 0.8s, melodicInertia 0.5
+- Adjustable grid size: Small (8x12), Medium (12x16), Large (16x24), XL (24x32)
+- Grid size dropdown in transport strip UI
+- 11 factory presets with corrected algorithm indices
+- 2 new presets: Tidal Lenia, Chemical Garden

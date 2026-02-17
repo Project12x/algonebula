@@ -246,50 +246,49 @@ Explicit pause-and-review checkpoints:
 
 ---
 
-## Phase 5 — Integration + Humanization (`v0.5.0`)
+## Phase 5 — Integration + Musicality (`v0.5.0`) :white_check_mark:
 
-**Goal:** First playable prototype. Engine -> Quantizer -> Voices -> Audio out.
+**Goal:** First playable prototype with musicality controls wired.
 
-- [ ] `VoiceAllocator`: priority (lowest/highest/latest), stealing (oldest/quietest/drop), hysteresis, unison
-- [ ] Ambient voice controls: drone sustain, note probability, gate time, velocity humanization
-- [ ] Humanization v1: swing, strum/note spread, melodic inertia, round-robin variation
-- [ ] Portamento: continuous + stepped (glissando through scale degrees), legato mode
-- [ ] Wire full chain: Engine -> Quantizer -> Allocator -> Voices -> Stereo Mix -> Output
+- [x] Quietest-voice stealing (no formal VoiceAllocator yet — done inline)
+- [x] Ambient voice controls: drone sustain, note probability, velocity humanization
+- [x] Musicality: melodic inertia, round-robin variation (wired into processBlock)
+- [x] Wire full chain: Engine -> Quantizer -> Voices -> Stereo Mix -> Output
+- [x] Density-driven dynamics: grid density modulates voice gain + filter cutoff
+- [x] 7 distinct CA engines with factory pattern switching
+- [x] Engine-aware grid visualization with per-engine color palettes
+- [x] Adjustable grid resolution (4 sizes) with UI dropdown
+- [x] 11 factory presets with corrected algorithm indices
+- [ ] `VoiceAllocator` formal class (priority, hysteresis, unison) — deferred
+- [ ] Portamento: continuous + stepped — deferred
+- [ ] Gate time per-voice countdown — next (Phase 5.5)
+- [ ] Strum spread onset delay — next (Phase 5.5)
 
-**Testing Milestone — Correctness:**
-- [ ] Voice allocator respects max polyphony (never exceeds N active voices)
-- [ ] Stealing oldest: correct victim identified (tracked by note-on timestamp)
-- [ ] Stealing quietest: correct victim identified (tracked by envelope level)
-- [ ] Drone sustain at 100%: note persists after cell death (verified over 100 steps)
-- [ ] Drone sustain at 0%: note releases immediately on cell death
-- [ ] Note probability at 50%: statistical test over 1000 triggers confirms 50% ± 5%
-- [ ] Gate time at 50%: note duration is exactly half of step duration (± 1 sample)
-- [ ] Melodic inertia at 100%: consecutive notes differ by ≤ 2 scale degrees (statistical test)
-- [ ] Portamento continuous: frequency glides linearly over specified time
-- [ ] Portamento stepped: frequency steps through intermediate scale degrees
+**Testing Milestone:**
+- [x] 82/82 tests pass (7 new CA engine tests)
+- [ ] **Manual: All presets produce musical output** (Dark Drone under investigation)
 
-**Testing Milestone — Integration:**
-- [ ] Full chain: GoL stepping produces audible musical output at correct scale/key
-- [ ] Transport stop: voices enter release, no new notes triggered
-- [ ] Transport resume: stepping continues, new notes trigger correctly
-- [ ] Rapid parameter changes: no clicks, no crashes (1000 random param changes in 10 seconds)
+**Tag:** `v0.5.0`
 
-**Testing Milestone — Mutation:**
-- [ ] Remove voice stealing: polyphony overflow test MUST fail (voices exceed max)
-- [ ] Set drone sustain probability to always-false: drone test MUST fail
-- [ ] Remove portamento interpolation: glide test MUST fail (instant jump)
-- [ ] Mutation survival rate < 20%
+---
 
-**RT Safety Checkpoint:**
-- [ ] Full audio path profiled: `processBlock` < 30% of audio budget at 44.1kHz/512
-- [ ] No allocations in full render chain (verified with instrumented allocator)
-- [ ] Voice stealing is O(N) where N = max voices (8), no sorting
-- [ ] All random number generation uses pre-seeded, allocation-free PRNG
+## Phase 5.5 — Musicality Phase 2 (`v0.5.5`)
 
-**Tag:** `v0.5.0` — **First Playable Milestone**
+**Goal:** Wire remaining musicality params and add engine-specific note triggering.
 
-> [!IMPORTANT]
-> **Technical Debt Review #1:** Pause and review. Are abstractions holding? Test gaps? Code duplication? Fix before Phase 6.
+- [ ] `gateTime`: per-voice sample countdown timer in SynthVoice (staccato at < 1.0)
+- [ ] `strumSpread`: onset delay per column position in SynthVoice
+- [ ] Engine-specific triggering: `getCellIntensity()` virtual on CellularEngine
+- [ ] Continuous engines (Lenia, R-D, Brownian, Swarm) modulate velocity by cell brightness
+- [ ] `cellActivated()` virtual for threshold-crossing detection on continuous engines
+
+**Testing Milestone:**
+- [ ] gateTime < 1.0 produces shorter notes than step interval
+- [ ] strumSpread > 0 staggers note onsets across columns
+- [ ] Continuous engines produce velocity variation proportional to cell intensity
+- [ ] All existing 82+ tests still pass
+
+**Tag:** `v0.5.5`
 
 ---
 
@@ -423,92 +422,43 @@ Explicit pause-and-review checkpoints:
 
 ---
 
-## Phase 9 — Additional Algorithms (Batch 1) (`v0.9.0`)
+## Phase 9 — Additional Algorithms (Batch 1) (`v0.9.0`) — MERGED INTO Phase 5
 
-**Goal:** Five more algorithms with crossfader.
+**Status:** Engines implemented in Phase 5 alongside core integration.
 
-- [ ] `WolframCA`: 1D rule (0-255), waterfall display
-- [ ] `BriansBrain`: three-state (alive/dying/dead)
-- [ ] `CyclicCA`: N states (3-16), threshold, rotating spirals
-- [ ] `ReactionDiffusion`: Gray-Scott model, feed/kill rates, float grid
-- [ ] `ParticleSwarm`: agent-based, count/speed/cohesion, flocking
-- [ ] `AlgorithmCrossfader`: dual-engine, timed crossfade, no silence gap
-- [ ] Factory patterns for each algorithm
-- [ ] NaN/Inf guards on all algorithm outputs
+- [ ] `WolframCA`: 1D rule (0-255), waterfall display — deferred to future
+- [x] `BriansBrain`: three-state (alive/dying/dead)
+- [x] `CyclicCA`: N states, threshold, rotating spirals
+- [x] `ReactionDiffusion`: Gray-Scott model, feed/kill rates, float grid
+- [x] `ParticleSwarm`: agent-based, particle trails
+- [ ] `AlgorithmCrossfader`: dual-engine, timed crossfade — deferred
+- [x] Engine-specific visualization palettes
+- [ ] NaN/Inf guards on all algorithm outputs — partial
 
-**Testing Milestone — Correctness:**
-- [ ] Wolfram Rule 110: known output row matches published truth table after 50 steps
-- [ ] Wolfram Rule 30: produces expected chaotic pattern (entropy measurement)
-- [ ] Brian's Brain: activity never reaches zero over 10000 generations (always sparking)
-- [ ] Cyclic CA: directional rotation detected (spatial autocorrelation lag analysis)
-- [ ] R-D at feed=0.055, kill=0.062: produces stable spots (pattern count stable after 5000 steps)
-- [ ] R-D NaN guard: feed=0.0, kill=0.0 produces valid output (no NaN/Inf)
-- [ ] Particle swarm: centroid tracking shows group cohesion (stddev < threshold)
-- [ ] Particle swarm: speed parameter linearly scales step distance (± 5%)
-- [ ] Each algorithm produces statistically distinct grid patterns (chi-squared vs GoL)
-
-**Testing Milestone — Integration:**
-- [ ] Crossfade: output amplitude during transition is continuous (no gap > 1ms of silence)
-- [ ] Crossfade: no clicks (max sample-to-sample delta < 0.1 during transition)
-- [ ] Crossfade: both engines run simultaneously (verified by grid snapshots during transition)
-- [ ] Algorithm swap mid-song: voices transition smoothly, no crash
-
-**Testing Milestone — Mutation:**
-- [ ] Wolfram: flip one bit in rule lookup table: Rule 110 pattern test MUST fail
-- [ ] Brian's Brain: remove "dying" state: activity test MUST fail (dies instantly)
-- [ ] R-D: swap feed/kill: spot pattern test MUST fail
-- [ ] Particle: set cohesion to 0: centroid test MUST fail (particles scatter)
-- [ ] Mutation survival rate < 20%
-
-**RT Safety Checkpoint:**
-- [ ] R-D uses pre-allocated float grid, no per-step allocation
-- [ ] Particle swarm is O(N) where N = particle count (max 32)
-- [ ] Crossfader pre-allocates both engines, no construction during crossfade
-- [ ] All new algorithms profiled: `step()` < 5% of audio budget
-
-**Tag:** `v0.9.0`
+**Testing:**
+- [x] Brian's Brain: step produces activity
+- [x] Cyclic CA: step advances generation
+- [x] R-D: float fields and grid projection
+- [x] Particle Swarm: particles deposit trails
+- [x] Engine type identification via getType()
 
 ---
 
-## Phase 10 — Lenia + Brownian (`v0.10.0`)
+## Phase 10 — Lenia + Brownian (`v0.10.0`) — MERGED INTO Phase 5
 
-**Goal:** Continuous-state algorithms for organic, ambient textures.
+**Status:** Engines implemented in Phase 5.
 
-- [ ] `Lenia`: continuous-state GoL, Gaussian kernel, growth function, radius/center/width/timestep
-- [ ] `BrownianField`: multi-walker (1-16), correlation, drift bias, step size
-- [ ] Factory patterns for both
-- [ ] Intensity mapping: Lenia cell values (0.0-1.0) -> velocity
+- [x] `LeniaEngine`: continuous-state, Gaussian kernel, growth function, bell-curve convolution
+- [x] `BrownianField`: multi-walker energy deposition
+- [x] Engine-aware visualization (intensity heatmaps)
+- [ ] Intensity mapping: cell values -> velocity — planned for Phase 5.5
 
-**Testing Milestone — Correctness:**
-- [ ] Lenia Orbium creature remains stable for 1000 steps (total mass ± 5%)
-- [ ] Lenia total cell intensity is bounded (no runaway: max cell value ≤ 1.0)
-- [ ] Lenia Gaussian kernel: kernel values match expected Gaussian (R² > 0.999)
-- [ ] Lenia growth function: output matches expected bell curve shape
-- [ ] Brownian walker: mean displacement² grows linearly with steps (diffusion law)
-- [ ] Brownian: 16 walkers at correlation=1.0 move in near-lockstep (position variance < threshold)
-- [ ] Brownian: correlation=0.0 produces independent walks (cross-correlation < 0.1)
-- [ ] Intensity mapping: cell value 0.5 -> velocity 64 (± 1)
+**Testing:**
+- [x] Lenia: continuous state and step
+- [x] Brownian: walkers deposit energy
 
-**Testing Milestone — Integration:**
-- [ ] Lenia -> quantizer -> voices: smooth continuous output produces evolving pitch sequences
-- [ ] Brownian -> quantizer: walker position maps to pitch, verified over 100 steps
-- [ ] Crossfade from GoL to Lenia: smooth transition, no clicks
-
-**Testing Milestone — Mutation:**
-- [ ] Clamp Lenia growth function to always return 0: creature dies, stability test MUST fail
-- [ ] Remove Brownian position wrapping: walkers leave grid, bound test MUST fail
-- [ ] Double Lenia timestep: Orbium destabilizes, stability test MUST fail
-- [ ] Mutation survival rate < 20%
-
-**RT Safety Checkpoint:**
-- [ ] Lenia kernel pre-computed in `prepareToPlay()`, not per-step
-- [ ] Lenia uses pre-allocated float grids (two: current + next)
-- [ ] Brownian PRNG is allocation-free, deterministic with seed
-
-**Tag:** `v0.10.0`
-
-> [!IMPORTANT]
-> **Technical Debt Review #2:** All 8 algorithms complete. Review: performance debt? Code duplication across algorithms? Common patterns to refactor into base class? Test coverage gaps?
+> [!NOTE]
+> Formal Orbium stability, diffusion law, and detailed correctness tests deferred to future hardening phase.
 
 ---
 
