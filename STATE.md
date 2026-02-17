@@ -1,7 +1,7 @@
 # Project State
 
 ## Current Phase
-Phase 4 — PolyBLEP Synth Voices + AHDSR + SVF Filter (`v0.4.0`)
+Phase 4.5 — Playability Fixes (`v0.4.5`)
 
 ## Build Status
 - VST3: Builds successfully (Release)
@@ -11,10 +11,11 @@ Phase 4 — PolyBLEP Synth Voices + AHDSR + SVF Filter (`v0.4.0`)
 ## Key Classes
 | Class | File | Status |
 |-------|------|--------|
-| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Voice triggering, 9 new APVTS params, processBlock integration |
-| `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | Dark UI with selectors, volume knob, CPU meter |
+| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | BPM param, MIDI keyboard state, note-on reseed, auto-reseed, algorithm->rule mapping, per-column waveshape |
+| `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | BPM knob, MidiKeyboardComponent, full control layout, v0.4.5 |
 | `NebulaLookAndFeel` | `src/ui/NebulaLookAndFeel.h/.cpp` | Gradient arc knobs, glow, Inter/JetBrains fonts |
 | `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens |
+| `GridComponent` | `src/ui/GridComponent.h` | Real-time grid visualization, click-to-toggle cells |
 | `CellularEngine` | `src/engine/CellularEngine.h` | Abstract interface (step/randomize/clear/getGrid) |
 | `Grid` | `src/engine/Grid.h` | Fixed 32x64, toroidal wrap, age, double-buffer |
 | `GameOfLife` | `src/engine/GameOfLife.h/.cpp` | 5 rule presets, bitmask lookup, xorshift64 PRNG |
@@ -46,3 +47,11 @@ Phase 4 — PolyBLEP Synth Voices + AHDSR + SVF Filter (`v0.4.0`)
 - SynthVoice: 3 (full chain output, 8-voice polyphony, sub tracking)
 - Phase 4 mutation: 4 (PolyBLEP presence, instant attack, cutoff offset, sub octave division)
 - Mutation survival rate: 0% (all 10 mutations caught across phases)
+
+## Recent Changes (v0.4.5)
+- BPM parameter (40-300) with UI knob
+- MIDI keyboard component for virtual input
+- MIDI note-on triggers grid reseed
+- Auto-reseed after 8 stagnant generations
+- Algorithm selector maps to GoL rule presets
+- Per-column waveshape diversity (base + col offset mod 8)

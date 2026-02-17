@@ -3,6 +3,24 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.5] - 2026-02-16
+
+### Added
+
+- BPM APVTS parameter (40-300, default 120) with rotary knob in Clock section
+- `MidiKeyboardComponent` at bottom of editor for virtual MIDI input
+- MIDI note-on reseed: playing a key reseeds the grid with note-derived RNG
+- Auto-reseed: injects ~5 random cells after 8 stagnant generations (alive count unchanged)
+- Algorithm selector now maps to GoL rule presets (Classic, HighLife, DayAndNight, Seeds, Ambient)
+- Per-column waveshape: each grid column offsets the base waveshape, creating timbral variety
+- Clock division and swing parameters read from APVTS and applied per processBlock
+
+### Changed
+
+- Window size increased to 1000x780 (was 1000x700) to accommodate keyboard
+- Removed fixed aspect ratio constraint for freeform resizing
+- Version bumped to v0.4.5 in editor display
+
 ## [0.4.0] - 2026-02-16
 
 ### Added

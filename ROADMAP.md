@@ -80,15 +80,15 @@ Explicit pause-and-review checkpoints:
 
 **Goal:** First cellular automaton running in the audio thread with double-buffered grid.
 
-- [ ] Set up logging infrastructure (juce::Logger, file + console, log levels)
-- [ ] `CellularEngine` abstract interface (`step()`, `getGrid()`, `reset()`, `seed()`)
-- [ ] `GameOfLife` implementation
+- [x] Set up logging infrastructure (juce::Logger, file + console, log levels)
+- [x] `CellularEngine` abstract interface (`step()`, `getGrid()`, `reset()`, `seed()`)
+- [x] `GameOfLife` implementation
   - 5 rule presets: Classic (B3/S23), High Life, Day & Night, Seeds, Ambient
   - Toroidal wrapping (edges connect)
   - Cell age tracking (generations alive)
   - Seeded random initialization (`uint64_t seed`)
-- [ ] Double-buffered grid swap mechanism (lock-free, audio owns front, GL reads back)
-- [ ] SPSC queue for UI -> audio cell edit commands
+- [x] Double-buffered grid swap mechanism (lock-free, audio owns front, GL reads back)
+- [x] SPSC queue for UI -> audio cell edit commands
 
 **Testing Milestone — Correctness:**
 - [ ] GoL Blinker oscillates correctly (period 2, exact cell positions verified)
@@ -125,9 +125,9 @@ Explicit pause-and-review checkpoints:
 
 **Goal:** Musical pitch mapping and tempo-synced stepping.
 
-- [ ] `ScaleQuantizer`: 15 scales x 12 root keys, octave range (base + span)
-- [ ] `Microtuning`: 12-TET, Just Intonation, Pythagorean, adjustable A4 reference (420-460Hz)
-- [ ] `ClockDivider`: host transport sync, free-running internal clock, swing
+- [x] `ScaleQuantizer`: 15 scales x 12 root keys, octave range (base + span)
+- [x] `Microtuning`: 12-TET, Just Intonation, Pythagorean, adjustable A4 reference (420-460Hz)
+- [x] `ClockDivider`: host transport sync, free-running internal clock, swing
 
 **Testing Milestone — Correctness:**
 - [ ] All 15 scales produce mathematically correct interval sets (verified against music theory reference)
@@ -164,10 +164,10 @@ Explicit pause-and-review checkpoints:
 
 **Goal:** Band-limited oscillators, envelopes, filters, sub-oscillator. Produces sound.
 
-- [ ] `PolyBLEPOscillator`: 8 waveshapes (sine, triangle, saw, pulse, sine+oct, fifth stack, pad, bell)
-- [ ] `SynthVoice`: AHDSR envelope, SVF filter (LP/HP/BP/Notch), noise layer
-- [ ] Sub-oscillator: sine, follows lowest voice, -1/-2 octave, level knob
-- [ ] Per-voice pan + auto-pan from grid column position
+- [x] `PolyBLEPOscillator`: 8 waveshapes (sine, triangle, saw, pulse, sine+oct, fifth stack, pad, bell)
+- [x] `SynthVoice`: AHDSR envelope, SVF filter (LP/HP/BP/Notch), noise layer
+- [x] Sub-oscillator: sine, follows lowest voice, -1/-2 octave, level knob
+- [x] Per-voice pan + auto-pan from grid column position
 - [ ] Establish **CPU performance baseline**: single voice at 44.1kHz/512 samples
 
 **Testing Milestone — Correctness (Oscillators):**
@@ -220,6 +220,29 @@ Explicit pause-and-review checkpoints:
 - [ ] **Baseline established:** single voice < X% CPU at 44.1kHz/512
 
 **Tag:** `v0.4.0`
+
+---
+
+## Phase 4.5 — Playability Fixes (`v0.4.5`) :white_check_mark:
+
+**Goal:** Make the synth interactive and prevent grid stagnation.
+
+- [x] BPM APVTS parameter (40-300) with rotary knob in Clock section
+- [x] Auto-reseed: inject ~5 random cells after 8 stagnant generations
+- [x] Virtual MIDI keyboard (`MidiKeyboardComponent`) at bottom of editor
+- [x] Algorithm selector maps to GoL rule presets (Classic, HighLife, DayAndNight, Seeds, Ambient)
+- [x] Per-column waveshape diversity (base shape + column offset mod 8)
+- [x] MIDI note-on triggers grid reseed with note-derived RNG
+- [x] Clock division and swing params read and applied per processBlock
+
+**Testing Milestone:**
+- [x] 75/75 existing tests still pass
+- [ ] **Manual: BPM knob changes grid stepping speed**
+- [ ] **Manual: MIDI keyboard triggers notes and reseeds grid**
+- [ ] **Manual: Grid auto-reseeds after stagnation**
+- [ ] **Manual: Algorithm switch changes grid behavior**
+
+**Tag:** `v0.4.5`
 
 ---
 
