@@ -620,13 +620,18 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             if (consonance > 0.0f && activeNoteCount > 0) {
               if (!ScaleQuantizer::isConsonantWithAll(midiNote, activeNotes,
                                                       activeNoteCount)) {
-                // Probabilistic rejection based on consonance strength
+                // At full consonance, dissonance is impossible
+                if (consonance >= 1.0f) {
+                  break; // Hard reject: skip this column
+                }
+                // Squared curve for stronger perceptual effect
+                float rejectProb = consonance * consonance;
                 musicRng ^= musicRng << 13;
                 musicRng ^= musicRng >> 7;
                 musicRng ^= musicRng << 17;
                 float consRoll =
                     static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-                if (consRoll < consonance)
+                if (consRoll < rejectProb)
                   break; // Skip this column (dissonant)
               }
             }
