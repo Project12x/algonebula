@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Hover tooltips on all 31 UI controls (knobs, combos, buttons) describing each parameter's musical effect
 - 6 distinct CA engines: Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
 - Each engine is a unique computational model with its own data structures (not just GoL rule variants)
 - Engine-aware GridComponent visualization: each engine renders with distinct color palette

@@ -50,6 +50,9 @@ private:
   // --- Grid ---
   GridComponent gridComponent;
 
+  // --- Tooltip ---
+  juce::TooltipWindow tooltipWindow{this, 400};
+
   // --- Preset selector ---
   juce::ComboBox presetCombo;
   juce::Label presetLabel;

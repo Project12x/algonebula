@@ -32,60 +32,114 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
     if (idx >= 0 && idx < static_cast<int>(factoryPresets.size()))
       factoryPresets[static_cast<size_t>(idx)].apply(processor.getAPVTS());
   };
+  presetCombo.setTooltip("Factory preset: load a curated parameter set");
   addAndMakeVisible(presetCombo);
 
   // --- Top selectors ---
   setupCombo(algorithmCombo, "Algorithm", "algorithm");
+  algorithmCombo.combo.setTooltip(
+      "Cellular automaton algorithm driving the grid");
   setupCombo(scaleCombo, "Scale", "scale");
+  scaleCombo.combo.setTooltip("Musical scale for pitch quantization");
   setupCombo(keyCombo, "Key", "key");
+  keyCombo.combo.setTooltip("Root key of the scale");
   setupCombo(waveshapeCombo, "Wave", "waveshape");
+  waveshapeCombo.combo.setTooltip("Oscillator waveform shape");
 
   // --- Clock ---
   setupKnob(bpmKnob, "BPM", "bpm");
+  bpmKnob.slider.setTooltip("Tempo in beats per minute (40-300)");
   setupCombo(clockDivCombo, "Clock", "clockDiv");
+  clockDivCombo.combo.setTooltip("Clock division: how often the grid steps");
   setupKnob(swingKnob, "Swing", "swing");
+  swingKnob.slider.setTooltip(
+      "Swing feel: offsets every other step (0% = straight)");
 
   // --- Envelope ---
   setupKnob(attackKnob, "Atk", "attack");
+  attackKnob.slider.setTooltip("Attack time: how quickly notes fade in");
   setupKnob(holdKnob, "Hold", "hold");
+  holdKnob.slider.setTooltip("Hold time: sustain at full level before decay");
   setupKnob(decayKnob, "Dcy", "decay");
+  decayKnob.slider.setTooltip(
+      "Decay time: fade from full level to sustain level");
   setupKnob(sustainKnob, "Sus", "sustain");
+  sustainKnob.slider.setTooltip("Sustain level: volume while note is held");
   setupKnob(releaseKnob, "Rel", "release");
+  releaseKnob.slider.setTooltip("Release time: fade out after note ends");
 
   // --- Filter ---
   setupKnob(filterCutoffKnob, "Cutoff", "filterCutoff");
+  filterCutoffKnob.slider.setTooltip(
+      "Filter cutoff frequency (20 Hz - 20 kHz)");
   setupKnob(filterResKnob, "Reso", "filterRes");
+  filterResKnob.slider.setTooltip(
+      "Filter resonance: emphasis at cutoff frequency");
   setupCombo(filterModeCombo, "Filter", "filterMode");
+  filterModeCombo.combo.setTooltip(
+      "Filter type: Low Pass / High Pass / Band Pass / Notch");
 
   // --- Mix ---
   setupKnob(noiseLevelKnob, "Noise", "noiseLevel");
+  noiseLevelKnob.slider.setTooltip("White noise layer level");
   setupKnob(subLevelKnob, "Sub", "subLevel");
+  subLevelKnob.slider.setTooltip(
+      "Sub-oscillator level (sine, tracks lowest voice)");
   setupCombo(subOctaveCombo, "Sub Oct", "subOctave");
+  subOctaveCombo.combo.setTooltip(
+      "Sub-oscillator octave: -1 or -2 octaves below");
 
   // --- Tuning ---
   setupCombo(tuningCombo, "Tuning", "tuning");
+  tuningCombo.combo.setTooltip(
+      "Tuning system: 12-TET, Just Intonation, Pythagorean");
   setupKnob(refPitchKnob, "A4 Hz", "refPitch");
+  refPitchKnob.slider.setTooltip(
+      "Reference pitch for A4 (420-460 Hz, standard = 440)");
 
   // --- Ambient ---
   setupKnob(droneSustainKnob, "Drone", "droneSustain");
+  droneSustainKnob.slider.setTooltip(
+      "Drone sustain: how long voices ring after cell death");
   setupKnob(noteProbKnob, "Prob", "noteProbability");
+  noteProbKnob.slider.setTooltip("Note probability: chance each cell triggers "
+                                 "a note (0 = silent, 1 = always)");
   setupKnob(gateTimeKnob, "Gate", "gateTime");
+  gateTimeKnob.slider.setTooltip("Gate time: note duration as fraction of step "
+                                 "(1 = legato, 0.5 = staccato)");
 
   // --- Humanize ---
   setupKnob(strumSpreadKnob, "Strum", "strumSpread");
+  strumSpreadKnob.slider.setTooltip(
+      "Strum spread: staggers note onsets across columns (0-50 ms)");
   setupKnob(melodicInertiaKnob, "Inertia", "melodicInertia");
+  melodicInertiaKnob.slider.setTooltip(
+      "Melodic inertia: chance to repeat the last pitch instead of a new one");
   setupKnob(roundRobinKnob, "RndRbn", "roundRobin");
+  roundRobinKnob.slider.setTooltip("Round-robin variation depth");
   setupKnob(velHumanizeKnob, "VelHum", "velocityHumanize");
+  velHumanizeKnob.slider.setTooltip(
+      "Velocity humanize: random velocity offset for natural dynamics");
 
   // --- Global ---
   setupKnob(masterVolumeKnob, "Volume", "masterVolume");
+  masterVolumeKnob.slider.setTooltip("Master output volume");
   setupKnob(voiceCountKnob, "Voices", "voiceCount");
+  voiceCountKnob.slider.setTooltip("Maximum polyphony (1-8 voices)");
 
   // --- Anti-cacophony ---
   setupKnob(consonanceKnob, "Consonance", "consonance");
+  consonanceKnob.slider.setTooltip(
+      "Consonance filter: rejects dissonant intervals (0 = off, 1 = strict)");
   setupKnob(maxTrigsKnob, "MaxTrigs", "maxTriggersPerStep");
+  maxTrigsKnob.slider.setTooltip(
+      "Max triggers per step: caps simultaneous note-ons (1-8)");
   setupKnob(restProbKnob, "Rest%", "restProbability");
+  restProbKnob.slider.setTooltip(
+      "Rest probability: chance of full-step silence for rhythmic breathing");
   setupKnob(pitchGravityKnob, "Gravity", "pitchGravity");
+  pitchGravityKnob.slider.setTooltip(
+      "Pitch gravity: biases notes toward root, 5th, and 3rd chord tones");
 
   // --- CPU Meter ---
   cpuMeterLabel.setFont(nebulaLnF.getMonoFont(11.0f));
@@ -104,6 +158,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
     processor.engineRunning.store(!running, std::memory_order_relaxed);
     playPauseBtn.setButtonText(running ? "Play" : "Pause");
   };
+  playPauseBtn.setTooltip("Start or pause the cellular automaton");
   addAndMakeVisible(playPauseBtn);
 
   clearBtn.setColour(juce::TextButton::buttonColourId,
@@ -113,6 +168,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   clearBtn.onClick = [this]() {
     processor.clearRequested.store(true, std::memory_order_relaxed);
   };
+  clearBtn.setTooltip("Clear the grid (kill all cells)");
   addAndMakeVisible(clearBtn);
 
   reseedBtn.setColour(juce::TextButton::buttonColourId,
@@ -122,6 +178,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   reseedBtn.onClick = [this]() {
     processor.reseedSymmetricRequested.store(true, std::memory_order_relaxed);
   };
+  reseedBtn.setTooltip("Reseed the grid with a random symmetric pattern");
   addAndMakeVisible(reseedBtn);
 
   // --- Seed display ---
