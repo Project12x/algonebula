@@ -222,5 +222,39 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"gateTime", 0.7f},
         {"tuning", 1.0f}, // Just Intonation
         {"refPitch", 440.0f}}},
+
+      // --- 6: Nebula Drift (blending pad) ---
+      {"Nebula Drift",
+       "Musical",
+       {{"algorithm", 0.0f}, // Classic GoL
+        {"scale", 9.0f},     // Pent. Major (consonant)
+        {"key", 0.0f},       // C
+        {"waveshape", 6.0f}, // Pad
+        {"bpm", 60.0f},      // Slow
+        {"clockDiv", 1.0f},  // 1/2 note
+        {"swing", 50.0f},
+        {"attack", 2.5f}, // Long fade-in (notes blend)
+        {"hold", 1.0f},
+        {"decay", 4.0f},    // Gentle fade
+        {"sustain", 0.6f},  // Hold tone
+        {"release", 10.0f}, // Long tail (overlap into next)
+        {"filterCutoff", 2500.0f},
+        {"filterRes", 0.35f},
+        {"filterMode", 0.0f}, // LP
+        {"noiseLevel", 0.02f},
+        {"subLevel", 0.4f},
+        {"subOctave", 0.0f}, // -1 Oct
+        {"masterVolume", 0.55f},
+        {"voiceCount", 4.0f},
+        {"melodicInertia", 0.85f}, // Strong pitch memory
+        {"roundRobin", 0.3f},
+        {"strumSpread", 20.0f},
+        {"velocityHumanize", 0.1f},
+        {"droneSustain", 0.7f},    // Overlapping tones
+        {"noteProbability", 0.4f}, // Sparse triggers
+        {"gateTime", 1.0f},        // Full gate
+        {"tuning", 0.0f},
+        {"refPitch", 440.0f},
+        {"symmetry", 1.0f}}}, // 4-fold mirror
   };
 }

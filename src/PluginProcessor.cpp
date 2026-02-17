@@ -247,6 +247,14 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (algoIdx != lastAlgorithmIdx) {
     lastAlgorithmIdx = algoIdx;
     // Map algorithm selector to GoL rule presets
+    // 0: Game of Life -> Classic (B3/S23)
+    // 1: Wolfram 1D   -> HighLife (B36/S23)
+    // 2: Brian's Brain -> DayAndNight (B3678/S34678)
+    // 3: Cyclic CA     -> Seeds (B2/S - chaotic, no survival)
+    // 4: Reaction-Diff -> Ambient (B3/S2345 - slow decay)
+    // 5: Particle Swarm-> Classic (B3/S23)
+    // 6: Lenia         -> HighLife (B36/S23 - balanced growth)
+    // 7: Brownian Field-> Seeds (B2/S - sparse explosions)
     GameOfLife::RulePreset preset;
     switch (algoIdx) {
     case 0:
@@ -261,8 +269,20 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     case 3:
       preset = GameOfLife::RulePreset::Seeds;
       break;
-    default:
+    case 4:
       preset = GameOfLife::RulePreset::Ambient;
+      break;
+    case 5:
+      preset = GameOfLife::RulePreset::Classic;
+      break;
+    case 6:
+      preset = GameOfLife::RulePreset::HighLife;
+      break;
+    case 7:
+      preset = GameOfLife::RulePreset::Seeds;
+      break;
+    default:
+      preset = GameOfLife::RulePreset::Classic;
       break;
     }
     engine.setRulePreset(preset);
@@ -355,16 +375,16 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       stagnationCounter = 0;
     }
 
-    // Overpopulation cap: if grid is >70% full for 4+ steps, thin it
+    // Overpopulation cap: if grid is >50% full for 3+ steps, reseed sparse
     const int totalCells =
         engine.getGrid().getRows() * engine.getGrid().getCols();
-    if (currentAlive > totalCells * 7 / 10) {
+    if (currentAlive > totalCells / 2) {
       ++overpopCounter;
     } else {
       overpopCounter = 0;
     }
 
-    if (overpopCounter >= 4) {
+    if (overpopCounter >= 3) {
       // Clear and reseed sparsely to break saturation
       reseedRng ^= reseedRng << 13;
       reseedRng ^= reseedRng >> 7;
