@@ -54,8 +54,8 @@ public:
       return {0.0, 0.0};
     }
 
-    // Gate timer: release note when countdown expires
-    if (gateRemainingSamples > 0) {
+    // Gate timer: release note when countdown expires (paused when frozen)
+    if (gateRemainingSamples > 0 && !frozen) {
       --gateRemainingSamples;
       if (gateRemainingSamples == 0) {
         envelope.noteOff();
@@ -140,6 +140,9 @@ public:
 
   void setPan(double p) { pan = p; } // -1.0 to 1.0
 
+  /// Set frozen state: pauses gate timer so voices sustain indefinitely.
+  void setFrozen(bool f) { frozen = f; }
+
   /// Set gate time in samples. 0 = hold until cell dies (no auto-release).
   void setGateTime(int samples) { gateRemainingSamples = samples; }
 
@@ -172,6 +175,7 @@ private:
   int gridRow = -1; // Grid cell this voice was triggered from
   int gridCol = -1;
   double filterCutoffHz = 8000.0;
+  bool frozen = false;
   int gateRemainingSamples = 0; // 0 = hold until cell dies
   int onsetDelaySamples = 0;    // Countdown before audio output starts
   int pendingOnsetDelay = 0;    // Set before noteOn, applied on noteOn

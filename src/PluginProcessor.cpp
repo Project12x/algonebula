@@ -391,6 +391,11 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Clock-driven engine stepping (only when running and not frozen)
   stepTriggeredThisBlock = false;
   bool isRunning = engineRunning.load(std::memory_order_relaxed);
+
+  // Propagate frozen state to all voices (pauses gate timers)
+  for (int v = 0; v < kMaxVoices; ++v)
+    voices[v].setFrozen(isFrozen);
+
   for (int i = 0; i < numSamples; ++i) {
     if (clock.tick() && isRunning && !isFrozen) {
       engine->getGridMutable().snapshotPrev();
@@ -735,9 +740,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
 
-    // Gain staging: density-modulated (smoothed to prevent clicks)
-    const double dGain =
-        static_cast<double>(smoothDensityGain.getNextValue()) / kMaxVoices;
+    // Gain staging: equal-power normalization for summed voices
+    const double dGain = static_cast<double>(smoothDensityGain.getNextValue()) /
+                         std::sqrt(static_cast<double>(kMaxVoices));
     if (buffer.getNumChannels() >= 2) {
       buffer.setSample(0, sample, static_cast<float>(mixL * dGain));
       buffer.setSample(1, sample, static_cast<float>(mixR * dGain));
