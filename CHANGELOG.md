@@ -23,6 +23,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Wired `noteProbability`, `velocityHumanize`, `melodicInertia` params into voice triggering
 - "Tidal Lenia" preset showcasing Lenia engine with slow waveform-rich sound
 - "Chemical Garden" preset showcasing Reaction-Diffusion with evolving textures
+- "Neural Flicker" preset for Brian's Brain (fast percussive 3-state pulses)
+- "Spectrum Cycle" preset for Cyclic CA (whole-tone color wheel)
+- "Swarm Murmuration" preset for Particle Swarm (flowing trails, just intonation)
+- "Fog Machine" preset for Brownian Field (diffuse drones, Pythagorean tuning)
+- Gate time: per-voice auto-noteOff countdown (staccato at &lt;1.0) driven by step interval
+- Strum spread: per-column onset delay (0-50ms) for arpeggiation-like spread
+- Engine-specific intensity: continuous engines modulate velocity from native float fields
+- `getCellIntensity()` / `cellActivated()` virtual methods on CellularEngine base class
+- `getStepIntervalSeconds()` convenience method on ClockDivider
 
 ### Changed
 
@@ -34,6 +43,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Default `melodicInertia` tuned from 0.3 to 0.5 (smoother melodies)
 - Fixed stale algorithm indices in Dark Drone and Pulsing Seeds presets
 - All factory presets now use wired musicality parameters effectively
+- Voice triggering uses `cellActivated()` instead of raw `wasBorn()` for engine-aware activation
+- 13 factory presets total (up from 9), covering all 7+1 engine types
 
 ## [0.4.5] - 2026-02-16
 
