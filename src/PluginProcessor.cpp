@@ -616,23 +616,28 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
               midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
             }
 
-            // --- Consonance filter: reject dissonant intervals ---
+            // --- Consonance filter: snap or reject dissonant intervals ---
             if (consonance > 0.0f && activeNoteCount > 0) {
               if (!ScaleQuantizer::isConsonantWithAll(midiNote, activeNotes,
                                                       activeNoteCount)) {
-                // At full consonance, dissonance is impossible
                 if (consonance >= 1.0f) {
-                  break; // Hard reject: skip this column
+                  // Hard mode: snap to nearest consonant pitch
+                  midiNote = ScaleQuantizer::snapToConsonant(
+                      midiNote, activeNotes, activeNoteCount);
+                } else {
+                  // Probabilistic: snap or allow through
+                  float rejectProb = consonance * consonance;
+                  musicRng ^= musicRng << 13;
+                  musicRng ^= musicRng >> 7;
+                  musicRng ^= musicRng << 17;
+                  float consRoll =
+                      static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+                  if (consRoll < rejectProb) {
+                    // Snap instead of reject
+                    midiNote = ScaleQuantizer::snapToConsonant(
+                        midiNote, activeNotes, activeNoteCount);
+                  }
                 }
-                // Squared curve for stronger perceptual effect
-                float rejectProb = consonance * consonance;
-                musicRng ^= musicRng << 13;
-                musicRng ^= musicRng >> 7;
-                musicRng ^= musicRng << 17;
-                float consRoll =
-                    static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-                if (consRoll < rejectProb)
-                  break; // Skip this column (dissonant)
               }
             }
 

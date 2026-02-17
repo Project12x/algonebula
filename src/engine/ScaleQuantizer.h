@@ -123,6 +123,27 @@ public:
     return true;
   }
 
+  /// Snap a dissonant note to the nearest consonant pitch.
+  /// Searches +-6 semitones from the candidate for a note consonant with ALL
+  /// active notes. Returns the original note if no consonant alternative found.
+  static int snapToConsonant(int candidateNote, const int *activeNotes,
+                             int activeCount) {
+    if (activeCount == 0 ||
+        isConsonantWithAll(candidateNote, activeNotes, activeCount))
+      return candidateNote;
+
+    // Search outward from candidate: +-1, +-2, ... +-6
+    for (int offset = 1; offset <= 6; ++offset) {
+      int above = candidateNote + offset;
+      int below = candidateNote - offset;
+      if (above <= 127 && isConsonantWithAll(above, activeNotes, activeCount))
+        return above;
+      if (below >= 0 && isConsonantWithAll(below, activeNotes, activeCount))
+        return below;
+    }
+    return candidateNote; // No consonant neighbor found — keep original
+  }
+
   /// Quantize with gravity toward chord tones (root/5th/3rd).
   /// @param gravity 0.0 = normal quantize, 1.0 = always snap to chord tone.
   /// @param rng Pointer to RNG state for probabilistic snapping.
