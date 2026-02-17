@@ -123,7 +123,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
 
   // --- Global ---
   setupKnob(masterVolumeKnob, "Volume", "masterVolume");
-  masterVolumeKnob.slider.setTooltip("Master output volume");
+  masterVolumeKnob.slider.setTooltip("Master output volume (0-200%)");
   setupKnob(voiceCountKnob, "Voices", "voiceCount");
   voiceCountKnob.slider.setTooltip("Maximum polyphony (1-8 voices)");
 

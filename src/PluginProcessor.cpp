@@ -45,7 +45,7 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Master ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("masterVolume", 1), "Master Volume",
-      juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.7f));
+      juce::NormalisableRange<float>(0.0f, 2.0f, 0.001f), 1.0f));
 
   // --- Algorithm ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
