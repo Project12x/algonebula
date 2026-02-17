@@ -1,17 +1,17 @@
 # Project State
 
 ## Current Phase
-Phase 5 — Integration + Musicality (`v0.5.0`)
+Phase 5.5 — Musicality Phase 2 (`v0.5.0`) -- COMPLETE
 
 ## Build Status
 - VST3: Builds successfully (Release)
 - Standalone: Builds successfully (Release)
-- Tests: 82/82 passing (pure C++, no JUCE dependency)
+- Tests: 86/86 passing (pure C++, no JUCE dependency)
 
 ## Key Classes
 | Class | File | Status |
 |-------|------|--------|
-| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Multi-engine factory, density modulation, musicality param wiring (noteProbability, velocityHumanize, melodicInertia), adjustable grid size |
+| `AlgoNebulaProcessor` | `src/PluginProcessor.h/.cpp` | Multi-engine factory, density modulation, musicality params, SmoothedValue on 6 continuous params, adjustable grid size |
 | `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | Full control layout: envelope, filter, mix, clock, tuning, ambient, humanize, global sections. Grid size dropdown in transport strip |
 | `NebulaLookAndFeel` | `src/ui/NebulaLookAndFeel.h/.cpp` | Gradient arc knobs, glow, Inter/JetBrains fonts |
 | `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens + 6 engine visualization tokens |
@@ -64,3 +64,6 @@ Phase 5 — Integration + Musicality (`v0.5.0`)
 - Grid size dropdown in transport strip UI
 - 11 factory presets with corrected algorithm indices
 - 2 new presets: Tidal Lenia, Chemical Garden
+- Hover tooltips on all 31 UI controls
+- SmoothedValue on filter cutoff, resonance, noise, sub level, density gain (20ms ramp)
+- Anti-cacophony: consonance filter, max triggers/step, rest probability, pitch gravity, density-adaptive voices
