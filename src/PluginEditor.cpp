@@ -346,9 +346,8 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
   };
 
   const int margin = 16;
-  const int headerH = 80;
-  const int selectorRowH = 50;
-  const int gridBottom = headerH + 10;
+  const int headerH = 84;              // title (38) + selector (46)
+  const int gridBottom = headerH + 38; // skip transport strip
   const int controlsAreaLeft = static_cast<int>(getWidth() * 0.52f);
 
   // Right-side section labels
@@ -372,21 +371,22 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
 //==============================================================================
 void AlgoNebulaEditor::resized() {
   const int margin = 16;
-  const int headerH = 50;
+  const int titleH = 38;
+  const int selectorH = 46; // 14 label + 4 gap + 24 combo + 4 pad
   const int labelH = 14;
   const int knobSize = 52;
   const int comboH = 24;
 
   auto area = getLocalBounds();
 
-  // --- Header: title row (first 38px) + selector row (remaining) ---
+  // --- Header: title row + selector row ---
   cpuMeterLabel.setBounds(getWidth() - 110, 12, 94, 14);
   presetLabel.setBounds(220, 10, 50, 20);
   presetCombo.setBounds(275, 8, 200, 24);
 
   // --- Top selector row (below title) ---
-  auto titleRow = area.removeFromTop(38);
-  auto selectorRow = area.removeFromTop(headerH - 38).reduced(margin, 0);
+  auto titleRow = area.removeFromTop(titleH);
+  auto selectorRow = area.removeFromTop(selectorH).reduced(margin, 0);
   selectorRow.removeFromTop(4);
   const int comboW = (selectorRow.getWidth() - 30) / 4;
 
@@ -409,7 +409,7 @@ void AlgoNebulaEditor::resized() {
   layoutOneCombo(keyCombo, a3);
   layoutOneCombo(waveshapeCombo, a4);
 
-  area.removeFromTop(6);
+  area.removeFromTop(4);
 
   // --- Transport strip (between header and grid) ---
   {
