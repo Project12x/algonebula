@@ -81,7 +81,7 @@ AlgoNebulaProcessor::createParameterLayout() {
 
   // --- Voices ---
   layout.add(std::make_unique<juce::AudioParameterInt>(
-      juce::ParameterID("voiceCount", 1), "Voice Count", 1, 8, 4));
+      juce::ParameterID("voiceCount", 1), "Voice Count", 1, 8, 3));
 
   // --- Waveshape ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -97,7 +97,7 @@ AlgoNebulaProcessor::createParameterLayout() {
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("noteProbability", 1), "Note Probability",
-      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("gateTime", 1), "Gate Time",
@@ -114,7 +114,7 @@ AlgoNebulaProcessor::createParameterLayout() {
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("melodicInertia", 1), "Melodic Inertia",
-      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.3f));
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("roundRobin", 1), "Round Robin",
@@ -127,7 +127,7 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Envelope ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("attack", 1), "Attack",
-      juce::NormalisableRange<float>(0.001f, 10.0f, 0.001f, 0.3f), 0.5f));
+      juce::NormalisableRange<float>(0.001f, 10.0f, 0.001f, 0.3f), 0.8f));
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("hold", 1), "Hold",
@@ -472,11 +472,47 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         ++voicesUsed;
     }
 
+    // Read musicality params
+    float noteProb = apvts.getRawParameterValue("noteProbability")->load();
+    float velHumanize = apvts.getRawParameterValue("velocityHumanize")->load();
+    float melInertia = apvts.getRawParameterValue("melodicInertia")->load();
+
     for (int col = 0; col < grid.getCols() && voicesUsed < maxVoices; ++col) {
       for (int row = 0; row < grid.getRows(); ++row) {
         if (grid.wasBorn(row, col)) {
-          int midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
+          // --- Note probability: skip trigger randomly ---
+          musicRng ^= musicRng << 13;
+          musicRng ^= musicRng >> 7;
+          musicRng ^= musicRng << 17;
+          float roll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+          if (roll > noteProb)
+            break; // Skip this column entirely
+
+          // --- Melodic inertia: reuse last pitch or compute new ---
+          int midiNote;
+          musicRng ^= musicRng << 13;
+          musicRng ^= musicRng >> 7;
+          musicRng ^= musicRng << 17;
+          float inertiaRoll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+          if (inertiaRoll < melInertia && lastTriggeredMidiNote > 0) {
+            midiNote = lastTriggeredMidiNote;
+          } else {
+            midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
+          }
+          lastTriggeredMidiNote = midiNote;
           float frequency = tuning.getFrequency(midiNote);
+
+          // --- Velocity humanization ---
+          float vel = lastMidiVelocity;
+          if (velHumanize > 0.0f) {
+            musicRng ^= musicRng << 13;
+            musicRng ^= musicRng >> 7;
+            musicRng ^= musicRng << 17;
+            float velOffset =
+                (static_cast<float>(musicRng & 0xFFFF) / 65535.0f - 0.5f) *
+                2.0f * velHumanize;
+            vel = std::clamp(vel + velOffset, 0.1f, 1.0f);
+          }
 
           // Find a free voice
           int voiceIdx = -1;
@@ -518,7 +554,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             voices[voiceIdx].setPan(pan);
 
             voices[voiceIdx].setGridPosition(row, col);
-            voices[voiceIdx].noteOn(midiNote, lastMidiVelocity, frequency,
+            voices[voiceIdx].noteOn(midiNote, vel, frequency,
                                     currentSampleRate);
             ++voicesUsed;
           }

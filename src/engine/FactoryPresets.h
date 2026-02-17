@@ -25,7 +25,7 @@ struct FactoryPreset {
 /// Returns all factory presets. Call once and cache.
 inline std::vector<FactoryPreset> getFactoryPresets() {
   return {
-      // --- 0: Init (all defaults) ---
+      // --- 0: Init (musical defaults) ---
       {"Init",
        "Utility",
        {{"algorithm", 0.0f},
@@ -35,7 +35,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"bpm", 120.0f},
         {"clockDiv", 2.0f},
         {"swing", 50.0f},
-        {"attack", 0.5f},
+        {"attack", 0.8f},
         {"hold", 0.0f},
         {"decay", 0.5f},
         {"sustain", 0.7f},
@@ -47,13 +47,13 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.0f},
         {"subOctave", 0.0f},
         {"masterVolume", 0.7f},
-        {"voiceCount", 4.0f},
-        {"melodicInertia", 0.3f},
+        {"voiceCount", 3.0f},
+        {"melodicInertia", 0.5f},
         {"roundRobin", 0.2f},
         {"strumSpread", 0.0f},
         {"velocityHumanize", 0.05f},
         {"droneSustain", 0.0f},
-        {"noteProbability", 1.0f},
+        {"noteProbability", 0.5f},
         {"gateTime", 0.8f},
         {"tuning", 0.0f},
         {"refPitch", 440.0f}}},
@@ -86,7 +86,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"strumSpread", 25.9f},
         {"velocityHumanize", 0.15f},
         {"droneSustain", 0.0f},
-        {"noteProbability", 1.0f},
+        {"noteProbability", 0.6f},
         {"gateTime", 0.8f},
         {"tuning", 0.0f},
         {"refPitch", 440.0f}}},
@@ -119,15 +119,15 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"strumSpread", 5.0f},
         {"velocityHumanize", 0.1f},
         {"droneSustain", 0.0f},
-        {"noteProbability", 0.7f},
+        {"noteProbability", 0.5f},
         {"gateTime", 0.5f},
         {"tuning", 0.0f},
         {"refPitch", 440.0f}}},
 
       // --- 3: Dark Drone ---
       {"Dark Drone",
-       "Experimental",
-       {{"algorithm", 4.0f}, // Ambient rule
+       "Musical",
+       {{"algorithm", 0.0f}, // GoL (classic, slow evolution)
         {"scale", 2.0f},     // Minor
         {"key", 2.0f},       // D
         {"waveshape", 2.0f}, // Saw
@@ -157,10 +157,10 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"tuning", 0.0f},
         {"refPitch", 440.0f}}},
 
-      // --- 4: Pulsing Seeds ---
+      // --- 4: Pulsing Seeds (fast percussive, GoL) ---
       {"Pulsing Seeds",
        "Experimental",
-       {{"algorithm", 3.0f}, // Seeds rule
+       {{"algorithm", 0.0f}, // GoL (classic, high-energy)
         {"scale", 0.0f},     // Chromatic
         {"key", 0.0f},       // C
         {"waveshape", 3.0f}, // Pulse
@@ -179,13 +179,13 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.0f},
         {"subOctave", 0.0f},
         {"masterVolume", 0.55f},
-        {"voiceCount", 8.0f},
+        {"voiceCount", 4.0f},
         {"melodicInertia", 0.0f},
         {"roundRobin", 0.8f},
         {"strumSpread", 0.0f},
         {"velocityHumanize", 0.2f},
         {"droneSustain", 0.0f},
-        {"noteProbability", 1.0f},
+        {"noteProbability", 0.4f},
         {"gateTime", 0.3f},
         {"tuning", 0.0f},
         {"refPitch", 440.0f}}},
@@ -218,7 +218,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"strumSpread", 15.0f},
         {"velocityHumanize", 0.1f},
         {"droneSustain", 0.0f},
-        {"noteProbability", 0.8f},
+        {"noteProbability", 0.5f},
         {"gateTime", 0.7f},
         {"tuning", 1.0f}, // Just Intonation
         {"refPitch", 440.0f}}},
@@ -245,16 +245,84 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.4f},
         {"subOctave", 0.0f}, // -1 Oct
         {"masterVolume", 0.55f},
-        {"voiceCount", 4.0f},
+        {"voiceCount", 3.0f},
         {"melodicInertia", 0.85f}, // Strong pitch memory
         {"roundRobin", 0.3f},
         {"strumSpread", 20.0f},
         {"velocityHumanize", 0.1f},
-        {"droneSustain", 0.7f},    // Overlapping tones
-        {"noteProbability", 0.4f}, // Sparse triggers
-        {"gateTime", 1.0f},        // Full gate
+        {"droneSustain", 0.7f},     // Overlapping tones
+        {"noteProbability", 0.35f}, // Sparse triggers
+        {"gateTime", 1.0f},         // Full gate
         {"tuning", 0.0f},
         {"refPitch", 440.0f},
         {"symmetry", 1.0f}}}, // 4-fold mirror
+
+      // --- 7: Tidal Lenia (slow continuous waves) ---
+      {"Tidal Lenia",
+       "Musical",
+       {{"algorithm", 6.0f}, // Lenia
+        {"scale", 9.0f},     // Pent. Major
+        {"key", 7.0f},       // G
+        {"waveshape", 6.0f}, // Pad
+        {"bpm", 72.0f},
+        {"clockDiv", 1.0f}, // 1/2
+        {"swing", 50.0f},
+        {"attack", 2.0f},
+        {"hold", 0.5f},
+        {"decay", 3.0f},
+        {"sustain", 0.5f},
+        {"release", 6.0f},
+        {"filterCutoff", 3000.0f},
+        {"filterRes", 0.4f},
+        {"filterMode", 0.0f}, // LP
+        {"noiseLevel", 0.02f},
+        {"subLevel", 0.5f},
+        {"subOctave", 0.0f}, // -1 Oct
+        {"masterVolume", 0.55f},
+        {"voiceCount", 3.0f},
+        {"melodicInertia", 0.8f},
+        {"roundRobin", 0.2f},
+        {"strumSpread", 10.0f},
+        {"velocityHumanize", 0.15f},
+        {"droneSustain", 0.5f},
+        {"noteProbability", 0.35f},
+        {"gateTime", 0.9f},
+        {"tuning", 0.0f},
+        {"refPitch", 440.0f},
+        {"gridSize", 2.0f}}}, // Large grid for Lenia patterns
+
+      // --- 8: Chemical Garden (evolving R-D textures) ---
+      {"Chemical Garden",
+       "Experimental",
+       {{"algorithm", 4.0f}, // Reaction-Diffusion
+        {"scale", 13.0f},    // Harmonic Minor
+        {"key", 9.0f},       // A
+        {"waveshape", 4.0f}, // Sine+Oct
+        {"bpm", 100.0f},
+        {"clockDiv", 2.0f}, // 1/4
+        {"swing", 50.0f},
+        {"attack", 1.0f},
+        {"hold", 0.2f},
+        {"decay", 2.0f},
+        {"sustain", 0.3f},
+        {"release", 4.0f},
+        {"filterCutoff", 4500.0f},
+        {"filterRes", 0.5f},
+        {"filterMode", 0.0f}, // LP
+        {"noiseLevel", 0.04f},
+        {"subLevel", 0.3f},
+        {"subOctave", 0.0f},
+        {"masterVolume", 0.55f},
+        {"voiceCount", 3.0f},
+        {"melodicInertia", 0.6f},
+        {"roundRobin", 0.5f},
+        {"strumSpread", 8.0f},
+        {"velocityHumanize", 0.12f},
+        {"droneSustain", 0.3f},
+        {"noteProbability", 0.4f},
+        {"gateTime", 0.7f},
+        {"tuning", 0.0f},
+        {"refPitch", 440.0f},
+        {"gridSize", 2.0f}}}, // Large grid for R-D patterns
   };
 }

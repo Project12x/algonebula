@@ -120,5 +120,8 @@ private:
   // --- Symmetry ---
   LabeledCombo symmetryCombo;
 
+  // --- Grid Size ---
+  LabeledCombo gridSizeCombo;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

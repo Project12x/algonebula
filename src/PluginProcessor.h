@@ -131,8 +131,10 @@ private:
   std::atomic<bool> seedChanged{false};
 
   int lastAlgorithmIdx = 0;
-  int lastGridSizeIdx = 1;  // Default to Medium (12x16)
-  float densityGain = 1.0f; // Updated each step from grid density
+  int lastGridSizeIdx = 1;        // Default to Medium (12x16)
+  float densityGain = 1.0f;       // Updated each step from grid density
+  int lastTriggeredMidiNote = 60; // For melodic inertia
+  uint64_t musicRng = 42;         // RNG for probability/humanization
 
 public:
   // UI accessors (call from message thread only)

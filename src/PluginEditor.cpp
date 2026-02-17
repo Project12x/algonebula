@@ -146,6 +146,9 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   // --- Symmetry ---
   setupCombo(symmetryCombo, "Symmetry", "symmetry");
 
+  // --- Grid Size ---
+  setupCombo(gridSizeCombo, "Grid", "gridSize");
+
   // --- MIDI Keyboard ---
   midiKeyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId,
                          NebulaColours::accent1.withAlpha(0.5f));
@@ -304,6 +307,12 @@ void AlgoNebulaEditor::resized() {
     symmetryCombo.label.setBounds(transportRow.removeFromLeft(60));
     symmetryCombo.combo.setBounds(
         transportRow.removeFromLeft(110).reduced(0, 1));
+    transportRow.removeFromLeft(8);
+
+    // Grid Size combo
+    gridSizeCombo.label.setBounds(transportRow.removeFromLeft(30));
+    gridSizeCombo.combo.setBounds(
+        transportRow.removeFromLeft(90).reduced(0, 1));
     transportRow.removeFromLeft(12);
 
     // Seed display

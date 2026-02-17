@@ -19,11 +19,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `getEngine()` and `getDensityGain()` accessors on PluginProcessor
 - 7 new CA engine unit tests (82 total, all passing)
 - Adjustable grid resolution: Small (8x12), Medium (12x16), Large (16x24), XL (24x32) via APVTS parameter
+- Grid size dropdown in transport strip UI
+- Wired `noteProbability`, `velocityHumanize`, `melodicInertia` params into voice triggering
+- "Tidal Lenia" preset showcasing Lenia engine with slow waveform-rich sound
+- "Chemical Garden" preset showcasing Reaction-Diffusion with evolving textures
 
 ### Changed
 
 - Algorithm selector now creates genuinely different engine types (was GoL rule presets)
 - PluginProcessor refactored to `unique_ptr<CellularEngine>` with factory pattern for engine switching
+- Default `noteProbability` tuned from 1.0 to 0.5 (fewer simultaneous triggers)
+- Default `voiceCount` tuned from 4 to 3 (less dense)
+- Default `attack` tuned from 0.5s to 0.8s (softer entry)
+- Default `melodicInertia` tuned from 0.3 to 0.5 (smoother melodies)
+- Fixed stale algorithm indices in Dark Drone and Pulsing Seeds presets
+- All factory presets now use wired musicality parameters effectively
 
 ## [0.4.5] - 2026-02-16
 
