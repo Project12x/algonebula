@@ -27,6 +27,7 @@ public:
                       RulePreset preset = RulePreset::Classic);
 
   // --- CellularEngine interface ---
+  EngineType getType() const override { return EngineType::GoL; }
   void step() override;
   void randomize(uint64_t seed, float density) override;
   void randomizeSymmetric(uint64_t seed, float density) override;

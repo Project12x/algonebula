@@ -6,14 +6,21 @@
 #include <juce_dsp/juce_dsp.h>
 #include <memory>
 
+#include "engine/BriansBrain.h"
+#include "engine/BrownianField.h"
 #include "engine/CellEditQueue.h"
 #include "engine/CellularEngine.h"
 #include "engine/ClockDivider.h"
+#include "engine/CyclicCA.h"
 #include "engine/GameOfLife.h"
 #include "engine/Grid.h"
+#include "engine/LeniaEngine.h"
 #include "engine/Microtuning.h"
+#include "engine/ParticleSwarm.h"
+#include "engine/ReactionDiffusion.h"
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
+
 
 // Forward declarations
 class NebulaLookAndFeel;
@@ -95,7 +102,8 @@ private:
   juce::AudioBuffer<float> stereoMixBuffer;
 
   // --- Cellular Engine ---
-  GameOfLife engine{12, 16, GameOfLife::RulePreset::Classic};
+  std::unique_ptr<CellularEngine> engine;
+  static std::unique_ptr<CellularEngine> createEngine(int algoIdx);
   Grid gridSnapshot; // Double-buffer: audio writes, GL/UI reads
   CellEditQueue cellEditQueue;
   std::atomic<uint64_t> engineGeneration{0};

@@ -3,11 +3,17 @@
 #include <cstring>
 #include <iostream>
 
+#include "engine/BriansBrain.h"
+#include "engine/BrownianField.h"
 #include "engine/CellEditQueue.h"
 #include "engine/ClockDivider.h"
+#include "engine/CyclicCA.h"
 #include "engine/GameOfLife.h"
 #include "engine/Grid.h"
+#include "engine/LeniaEngine.h"
 #include "engine/Microtuning.h"
+#include "engine/ParticleSwarm.h"
+#include "engine/ReactionDiffusion.h"
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
 
@@ -1638,6 +1644,148 @@ static void testMutation_SubOctaveDivision() {
 }
 
 // ============================================================================
+// CA Engine Tests (Phase 5)
+// ============================================================================
+void testBriansBrainBasics() {
+  TEST("BriansBrain: step produces activity");
+  BriansBrain bb(12, 16);
+  bb.randomize(42, 0.3f);
+  ASSERT_TRUE(bb.getGrid().countAlive() > 0);
+  bb.step();
+  ASSERT_EQ(bb.getGeneration(), 1u);
+  bb.clear();
+  ASSERT_EQ(bb.getGrid().countAlive(), 0);
+  ASSERT_EQ(bb.getGeneration(), 0u);
+  PASS();
+}
+
+void testCyclicCABasics() {
+  TEST("CyclicCA: step advances generation");
+  CyclicCA ca(12, 16);
+  ca.randomize(42, 0.3f);
+  ASSERT_TRUE(ca.getGrid().countAlive() > 0);
+  for (int i = 0; i < 10; ++i)
+    ca.step();
+  ASSERT_EQ(ca.getGeneration(), 10u);
+  ca.clear();
+  ASSERT_EQ(ca.getGeneration(), 0u);
+  PASS();
+}
+
+void testReactionDiffusionBasics() {
+  TEST("ReactionDiffusion: float fields and grid projection");
+  ReactionDiffusion rd(12, 16);
+  rd.randomize(42, 0.3f);
+  // After randomize, there should be some activity in the grid
+  for (int i = 0; i < 5; ++i)
+    rd.step();
+  ASSERT_EQ(rd.getGeneration(), 5u);
+  // Verify native float data is accessible
+  const float *u = rd.getFieldA();
+  const float *v = rd.getFieldB();
+  ASSERT_TRUE(u != nullptr);
+  ASSERT_TRUE(v != nullptr);
+  rd.clear();
+  ASSERT_EQ(rd.getGeneration(), 0u);
+  PASS();
+}
+
+void testLeniaEngineBasics() {
+  TEST("LeniaEngine: continuous state and step");
+  LeniaEngine le(12, 16);
+  le.randomize(42, 0.3f);
+  // After randomize, state field should have some non-zero values
+  const float *state = le.getStateField();
+  ASSERT_TRUE(state != nullptr);
+  bool hasNonZero = false;
+  for (int i = 0; i < 12 * Grid::kMaxCols; ++i) {
+    if (state[i] > 0.0f) {
+      hasNonZero = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(hasNonZero);
+  for (int i = 0; i < 5; ++i)
+    le.step();
+  ASSERT_EQ(le.getGeneration(), 5u);
+  le.clear();
+  ASSERT_EQ(le.getGeneration(), 0u);
+  PASS();
+}
+
+void testParticleSwarmBasics() {
+  TEST("ParticleSwarm: particles deposit trails");
+  ParticleSwarm ps(12, 16);
+  ps.randomize(42, 0.3f);
+  // After randomize, particles should exist
+  const auto *particles = ps.getParticles();
+  ASSERT_TRUE(particles != nullptr);
+  for (int i = 0; i < 10; ++i)
+    ps.step();
+  ASSERT_EQ(ps.getGeneration(), 10u);
+  // Trail field should have deposited some energy
+  const float *trail = ps.getTrailField();
+  bool hasTrail = false;
+  for (int i = 0; i < 12 * Grid::kMaxCols; ++i) {
+    if (trail[i] > 0.0f) {
+      hasTrail = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(hasTrail);
+  ps.clear();
+  ASSERT_EQ(ps.getGeneration(), 0u);
+  PASS();
+}
+
+void testBrownianFieldBasics() {
+  TEST("BrownianField: walkers deposit energy");
+  BrownianField bf(12, 16);
+  bf.randomize(42, 0.3f);
+  for (int i = 0; i < 10; ++i)
+    bf.step();
+  ASSERT_EQ(bf.getGeneration(), 10u);
+  const float *energy = bf.getEnergyField();
+  bool hasEnergy = false;
+  for (int i = 0; i < 12 * Grid::kMaxCols; ++i) {
+    if (energy[i] > 0.0f) {
+      hasEnergy = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(hasEnergy);
+  bf.clear();
+  ASSERT_EQ(bf.getGeneration(), 0u);
+  PASS();
+}
+
+void testEngineTypeIdentification() {
+  TEST("Engine type identification via getType()");
+  GameOfLife gol(12, 16);
+  BriansBrain bb(12, 16);
+  CyclicCA ca(12, 16);
+  ReactionDiffusion rd(12, 16);
+  LeniaEngine le(12, 16);
+  ParticleSwarm ps(12, 16);
+  BrownianField bf(12, 16);
+
+  ASSERT_EQ(static_cast<int>(gol.getType()), static_cast<int>(EngineType::GoL));
+  ASSERT_EQ(static_cast<int>(bb.getType()),
+            static_cast<int>(EngineType::BriansBrain));
+  ASSERT_EQ(static_cast<int>(ca.getType()),
+            static_cast<int>(EngineType::CyclicCA));
+  ASSERT_EQ(static_cast<int>(rd.getType()),
+            static_cast<int>(EngineType::ReactionDiffusion));
+  ASSERT_EQ(static_cast<int>(le.getType()),
+            static_cast<int>(EngineType::Lenia));
+  ASSERT_EQ(static_cast<int>(ps.getType()),
+            static_cast<int>(EngineType::ParticleSwarm));
+  ASSERT_EQ(static_cast<int>(bf.getType()),
+            static_cast<int>(EngineType::BrownianField));
+  PASS();
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 int main() {
@@ -1762,6 +1910,16 @@ int main() {
   testMutation_EnvelopeInstantAttack();
   testMutation_FilterCutoffOffset();
   testMutation_SubOctaveDivision();
+
+  // Phase 5 -- CA Engines
+  std::cout << "\n[CA Engine Tests]" << std::endl;
+  testBriansBrainBasics();
+  testCyclicCABasics();
+  testReactionDiffusionBasics();
+  testLeniaEngineBasics();
+  testParticleSwarmBasics();
+  testBrownianFieldBasics();
+  testEngineTypeIdentification();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;

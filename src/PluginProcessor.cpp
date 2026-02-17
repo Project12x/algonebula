@@ -5,7 +5,34 @@
 AlgoNebulaProcessor::AlgoNebulaProcessor()
     : AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)),
-      apvts(*this, nullptr, "AlgoNebulaState", createParameterLayout()) {}
+      apvts(*this, nullptr, "AlgoNebulaState", createParameterLayout()),
+      engine(createEngine(0)) {}
+
+std::unique_ptr<CellularEngine> AlgoNebulaProcessor::createEngine(int algoIdx) {
+  switch (algoIdx) {
+  case 0:
+    return std::make_unique<GameOfLife>(12, 16,
+                                        GameOfLife::RulePreset::Classic);
+  case 1:
+    return std::make_unique<GameOfLife>(12, 16,
+                                        GameOfLife::RulePreset::HighLife);
+  case 2:
+    return std::make_unique<BriansBrain>(12, 16);
+  case 3:
+    return std::make_unique<CyclicCA>(12, 16);
+  case 4:
+    return std::make_unique<ReactionDiffusion>(12, 16);
+  case 5:
+    return std::make_unique<ParticleSwarm>(12, 16);
+  case 6:
+    return std::make_unique<LeniaEngine>(12, 16);
+  case 7:
+    return std::make_unique<BrownianField>(12, 16);
+  default:
+    return std::make_unique<GameOfLife>(12, 16,
+                                        GameOfLife::RulePreset::Classic);
+  }
+}
 
 AlgoNebulaProcessor::~AlgoNebulaProcessor() = default;
 
@@ -175,8 +202,8 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
       apvts.getRawParameterValue("masterVolume")->load());
 
   // Initialize engine with default seed
-  engine.randomize(42, 0.3f);
-  gridSnapshot.copyFrom(engine.getGrid());
+  engine->randomize(42, 0.3f);
+  gridSnapshot.copyFrom(engine->getGrid());
   engineGeneration.store(0, std::memory_order_relaxed);
 
   // Initialize clock
@@ -203,7 +230,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   juce::ScopedNoDenormals noDenormals;
 
   // Drain UI cell edits into engine grid (bounded)
-  cellEditQueue.drainInto(engine.getGridMutable());
+  cellEditQueue.drainInto(engine->getGridMutable());
 
   // Process virtual MIDI keyboard input
   keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
@@ -241,51 +268,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   clock.setDivision(static_cast<ClockDivider::Division>(clockDivIdx));
   clock.setSwing(static_cast<double>(swing));
 
-  // --- Read algorithm param and update rule preset ---
+  // --- Read algorithm param and switch engine type ---
   int algoIdx =
       static_cast<int>(apvts.getRawParameterValue("algorithm")->load());
   if (algoIdx != lastAlgorithmIdx) {
     lastAlgorithmIdx = algoIdx;
-    // Map algorithm selector to GoL rule presets
-    // 0: Game of Life -> Classic (B3/S23)
-    // 1: Wolfram 1D   -> HighLife (B36/S23)
-    // 2: Brian's Brain -> DayAndNight (B3678/S34678)
-    // 3: Cyclic CA     -> Seeds (B2/S - chaotic, no survival)
-    // 4: Reaction-Diff -> Ambient (B3/S2345 - slow decay)
-    // 5: Particle Swarm-> Classic (B3/S23)
-    // 6: Lenia         -> HighLife (B36/S23 - balanced growth)
-    // 7: Brownian Field-> Seeds (B2/S - sparse explosions)
-    GameOfLife::RulePreset preset;
-    switch (algoIdx) {
-    case 0:
-      preset = GameOfLife::RulePreset::Classic;
-      break;
-    case 1:
-      preset = GameOfLife::RulePreset::HighLife;
-      break;
-    case 2:
-      preset = GameOfLife::RulePreset::DayAndNight;
-      break;
-    case 3:
-      preset = GameOfLife::RulePreset::Seeds;
-      break;
-    case 4:
-      preset = GameOfLife::RulePreset::Ambient;
-      break;
-    case 5:
-      preset = GameOfLife::RulePreset::Classic;
-      break;
-    case 6:
-      preset = GameOfLife::RulePreset::HighLife;
-      break;
-    case 7:
-      preset = GameOfLife::RulePreset::Seeds;
-      break;
-    default:
-      preset = GameOfLife::RulePreset::Classic;
-      break;
-    }
-    engine.setRulePreset(preset);
+    // Create new engine of the correct type
+    engine = createEngine(algoIdx);
+    engine->randomize(reseedRng, 0.3f);
+    // Release all voices when switching engine
+    for (int v = 0; v < kMaxVoices; ++v)
+      voices[v].reset();
   }
 
   // Clear output buffer
@@ -301,7 +294,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Clear grid request
   if (clearRequested.exchange(false, std::memory_order_relaxed)) {
-    engine.clear();
+    engine->clear();
     stagnationCounter = 0;
     lastAliveCount = 0;
   }
@@ -312,7 +305,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     reseedRng ^= reseedRng >> 7;
     reseedRng ^= reseedRng << 17;
     currentSeed.store(reseedRng, std::memory_order_relaxed);
-    engine.randomizeSymmetric(reseedRng, 0.3f);
+    engine->randomizeSymmetric(reseedRng, 0.3f);
     stagnationCounter = 0;
     lastAliveCount = 0;
   }
@@ -327,15 +320,15 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   bool isRunning = engineRunning.load(std::memory_order_relaxed);
   for (int i = 0; i < numSamples; ++i) {
     if (clock.tick() && isRunning) {
-      engine.getGridMutable().snapshotPrev();
-      engine.step();
+      engine->getGridMutable().snapshotPrev();
+      engine->step();
       stepTriggeredThisBlock = true;
     }
   }
 
   // Auto-reseed: if alive count unchanged for 8 steps, inject cells
   if (stepTriggeredThisBlock) {
-    int currentAlive = engine.getGrid().countAlive();
+    int currentAlive = engine->getGrid().countAlive();
     if (currentAlive == lastAliveCount) {
       ++stagnationCounter;
     } else {
@@ -344,7 +337,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
     if (stagnationCounter >= 8) {
-      auto &grid = engine.getGridMutable();
+      auto &grid = engine->getGridMutable();
       const int rows = grid.getRows();
       const int cols = grid.getCols();
       for (int i = 0; i < 5; ++i) {
@@ -378,7 +371,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // Overpopulation cap: if grid is >50% full for 3+ steps, reseed sparse
     const int totalCells =
-        engine.getGrid().getRows() * engine.getGrid().getCols();
+        engine->getGrid().getRows() * engine->getGrid().getCols();
     if (currentAlive > totalCells / 2) {
       ++overpopCounter;
     } else {
@@ -392,9 +385,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       reseedRng ^= reseedRng << 17;
       currentSeed.store(reseedRng, std::memory_order_relaxed);
       if (useSymmetry)
-        engine.randomizeSymmetric(reseedRng, 0.15f);
+        engine->randomizeSymmetric(reseedRng, 0.15f);
       else
-        engine.randomize(reseedRng, 0.15f);
+        engine->randomize(reseedRng, 0.15f);
       overpopCounter = 0;
       stagnationCounter = 0;
       lastAliveCount = 0;
@@ -430,7 +423,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
     // --- Event-based voice management ---
-    const auto &grid = engine.getGrid();
+    const auto &grid = engine->getGrid();
     // Release voices for cells that just died (no longer retrigger everything)
     for (int v = 0; v < kMaxVoices; ++v) {
       if (voices[v].isActive()) {
@@ -532,8 +525,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   }
 
   // Update grid snapshot for GL/UI thread (simple copy, no lock)
-  gridSnapshot.copyFrom(engine.getGrid());
-  engineGeneration.store(engine.getGeneration(), std::memory_order_relaxed);
+  gridSnapshot.copyFrom(engine->getGrid());
+  engineGeneration.store(engine->getGeneration(), std::memory_order_relaxed);
 
   // Apply master volume with smoothing (per-sample)
   for (int sample = 0; sample < numSamples; ++sample) {

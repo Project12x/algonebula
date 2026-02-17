@@ -83,6 +83,12 @@ target_sources(AlgoNebula PRIVATE
     src/ui/NebulaLookAndFeel.cpp
     src/ui/NebulaColours.cpp
     src/engine/GameOfLife.cpp
+    src/engine/BriansBrain.cpp
+    src/engine/CyclicCA.cpp
+    src/engine/ReactionDiffusion.cpp
+    src/engine/LeniaEngine.cpp
+    src/engine/ParticleSwarm.cpp
+    src/engine/BrownianField.cpp
 )
 
 # --- Include Directories ---
@@ -138,6 +144,12 @@ target_link_libraries(AlgoNebula
 add_executable(AlgoNebulaTests
     test/HeadlessTest.cpp
     src/engine/GameOfLife.cpp
+    src/engine/BriansBrain.cpp
+    src/engine/CyclicCA.cpp
+    src/engine/ReactionDiffusion.cpp
+    src/engine/LeniaEngine.cpp
+    src/engine/ParticleSwarm.cpp
+    src/engine/BrownianField.cpp
 )
 
 target_include_directories(AlgoNebulaTests PRIVATE

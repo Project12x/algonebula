@@ -3,12 +3,26 @@
 #include "Grid.h"
 #include <cstdint>
 
+/// Engine type identifier for safe downcasting by visualizers.
+enum class EngineType {
+  GoL,
+  BriansBrain,
+  CyclicCA,
+  ReactionDiffusion,
+  ParticleSwarm,
+  Lenia,
+  BrownianField
+};
+
 /// Abstract interface for all cellular automata engines.
 /// All implementations must be allocation-free in step() — all memory
 /// pre-allocated in reset() or constructor.
 class CellularEngine {
 public:
   virtual ~CellularEngine() = default;
+
+  /// Get engine type for safe downcasting.
+  virtual EngineType getType() const = 0;
 
   /// Advance the automaton by one generation.
   /// Must be O(rows * cols), no allocations.
