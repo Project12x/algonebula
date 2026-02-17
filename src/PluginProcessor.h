@@ -126,6 +126,7 @@ private:
   // --- Synth Voices ---
   static constexpr int kMaxVoices = 8;
   SynthVoice voices[kMaxVoices];
+  int roundRobinIndex = 0;
   bool stepTriggeredThisBlock = false;
 
   // --- MIDI keyboard state ---

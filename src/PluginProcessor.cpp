@@ -45,7 +45,7 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Master ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("masterVolume", 1), "Master Volume",
-      juce::NormalisableRange<float>(0.0f, 2.0f, 0.001f), 1.0f));
+      juce::NormalisableRange<float>(0.0f, 2.0f, 0.001f), 0.5f));
 
   // --- Algorithm ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -122,7 +122,7 @@ AlgoNebulaProcessor::createParameterLayout() {
 
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("velocityHumanize", 1), "Velocity Humanize",
-      juce::NormalisableRange<float>(0.0f, 0.3f, 0.01f), 0.05f));
+      juce::NormalisableRange<float>(0.0f, 0.5f, 0.01f), 0.1f));
 
   // --- Envelope ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -539,6 +539,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     float melInertia = apvts.getRawParameterValue("melodicInertia")->load();
     float gateTimeFrac = apvts.getRawParameterValue("gateTime")->load();
     float strumSpread = apvts.getRawParameterValue("strumSpread")->load();
+    float roundRobin = apvts.getRawParameterValue("roundRobin")->load();
 
     // Anti-cacophony params
     float consonance = apvts.getRawParameterValue("consonance")->load();
@@ -650,14 +651,25 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
               vel = std::clamp(vel + velOffset, 0.1f, 1.0f);
             }
 
-            // Find a free voice
+            // Find a free voice (round-robin: rotate start index)
             int voiceIdx = -1;
-            for (int v = 0; v < kMaxVoices; ++v) {
+            int searchStart = 0;
+            if (roundRobin > 0.0f) {
+              musicRng ^= musicRng << 13;
+              musicRng ^= musicRng >> 7;
+              musicRng ^= musicRng << 17;
+              float rrRoll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+              if (rrRoll < roundRobin)
+                searchStart = roundRobinIndex;
+            }
+            for (int i = 0; i < kMaxVoices; ++i) {
+              int v = (searchStart + i) % kMaxVoices;
               if (!voices[v].isActive()) {
                 voiceIdx = v;
                 break;
               }
             }
+            roundRobinIndex = (roundRobinIndex + 1) % kMaxVoices;
             // Steal quietest if no free voice
             if (voiceIdx < 0) {
               double quietest = 999.0;
