@@ -192,6 +192,11 @@ AlgoNebulaProcessor::createParameterLayout() {
                         "XL (24x32)"},
       1)); // default to Medium
 
+  // --- Freeze ---
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("freeze", 1), "Freeze", juce::StringArray{"Off", "On"},
+      0));
+
   // --- Anti-cacophony ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("consonance", 1), "Consonance",
@@ -371,11 +376,23 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       static_cast<int>(apvts.getRawParameterValue("symmetry")->load());
   bool useSymmetry = (symmetryIdx == 1);
 
-  // Clock-driven engine stepping (only when running)
+  // Load factory pattern request
+  int patternIdx = loadPatternRequested.exchange(-1, std::memory_order_relaxed);
+  if (patternIdx >= 0) {
+    FactoryPatternLibrary::applyPattern(engine->getGridMutable(), patternIdx);
+    stagnationCounter = 0;
+    lastAliveCount = 0;
+  }
+
+  // --- Read freeze mode ---
+  bool isFrozen =
+      static_cast<int>(apvts.getRawParameterValue("freeze")->load()) == 1;
+
+  // Clock-driven engine stepping (only when running and not frozen)
   stepTriggeredThisBlock = false;
   bool isRunning = engineRunning.load(std::memory_order_relaxed);
   for (int i = 0; i < numSamples; ++i) {
-    if (clock.tick() && isRunning) {
+    if (clock.tick() && isRunning && !isFrozen) {
       engine->getGridMutable().snapshotPrev();
       engine->step();
       stepTriggeredThisBlock = true;
@@ -760,14 +777,121 @@ juce::AudioProcessorEditor *AlgoNebulaProcessor::createEditor() {
 void AlgoNebulaProcessor::getStateInformation(juce::MemoryBlock &destData) {
   auto state = apvts.copyState();
   std::unique_ptr<juce::XmlElement> xml(state.createXml());
+
+  // Append grid state as child element
+  auto *gridXml = xml->createNewChildElement("GridState");
+  gridXml->setAttribute("version", 1);
+  gridXml->setAttribute("algorithm", lastAlgorithmIdx);
+  gridXml->setAttribute("gridSize", lastGridSizeIdx);
+  gridXml->setAttribute("seed",
+                        juce::String(static_cast<juce::int64>(
+                            currentSeed.load(std::memory_order_relaxed))));
+
+  // Encode grid cells and ages as base64
+  const auto &grid = engine->getGrid();
+  int rows = grid.getRows();
+  int cols = grid.getCols();
+  gridXml->setAttribute("rows", rows);
+  gridXml->setAttribute("cols", cols);
+
+  // Cell data: pack only the active region (rows * cols bytes)
+  juce::MemoryBlock cellBlock(static_cast<size_t>(rows * cols));
+  for (int r = 0; r < rows; ++r)
+    for (int c = 0; c < cols; ++c)
+      static_cast<uint8_t *>(cellBlock.getData())[r * cols + c] =
+          grid.getCell(r, c);
+  gridXml->setAttribute("cells", cellBlock.toBase64Encoding());
+
+  // Age data: pack as little-endian uint16 (rows * cols * 2 bytes)
+  juce::MemoryBlock ageBlock(static_cast<size_t>(rows * cols * 2));
+  auto *agePtr = static_cast<uint8_t *>(ageBlock.getData());
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      uint16_t age = grid.getAge(r, c);
+      int idx = (r * cols + c) * 2;
+      agePtr[idx] = static_cast<uint8_t>(age & 0xFF);
+      agePtr[idx + 1] = static_cast<uint8_t>((age >> 8) & 0xFF);
+    }
+  }
+  gridXml->setAttribute("ages", ageBlock.toBase64Encoding());
+
   copyXmlToBinary(*xml, destData);
 }
 
 void AlgoNebulaProcessor::setStateInformation(const void *data,
                                               int sizeInBytes) {
   std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
-  if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
-    apvts.replaceState(juce::ValueTree::fromXml(*xml));
+  if (xml == nullptr || !xml->hasTagName(apvts.state.getType()))
+    return;
+
+  // Restore APVTS parameters
+  apvts.replaceState(juce::ValueTree::fromXml(*xml));
+
+  // Restore grid state if present
+  auto *gridXml = xml->getChildByName("GridState");
+  if (gridXml == nullptr)
+    return; // Legacy state without grid — just use APVTS defaults
+
+  int version = gridXml->getIntAttribute("version", 0);
+  if (version < 1)
+    return; // Unknown version — skip grid restore
+
+  // Restore engine type and seed
+  int algoIdx = gridXml->getIntAttribute("algorithm", 0);
+  int gridSizeIdx = gridXml->getIntAttribute("gridSize", 1);
+  auto seed = static_cast<uint64_t>(
+      gridXml->getStringAttribute("seed", "12345").getLargeIntValue());
+
+  int rows = gridXml->getIntAttribute("rows", 12);
+  int cols = gridXml->getIntAttribute("cols", 16);
+
+  // Validate dimensions
+  if (rows < 1 || rows > Grid::kMaxRows || cols < 1 || cols > Grid::kMaxCols)
+    return;
+
+  // Recreate engine
+  lastAlgorithmIdx = algoIdx;
+  lastGridSizeIdx = gridSizeIdx;
+  engine = createEngine(algoIdx, rows, cols);
+  currentSeed.store(seed, std::memory_order_relaxed);
+
+  // Decode cell data
+  juce::String cellB64 = gridXml->getStringAttribute("cells", "");
+  if (cellB64.isNotEmpty()) {
+    juce::MemoryBlock cellBlock;
+    if (cellBlock.fromBase64Encoding(cellB64) &&
+        cellBlock.getSize() >= static_cast<size_t>(rows * cols)) {
+      auto &grid = engine->getGridMutable();
+      const auto *cellData = static_cast<const uint8_t *>(cellBlock.getData());
+      for (int r = 0; r < rows; ++r)
+        for (int c = 0; c < cols; ++c)
+          grid.setCell(r, c, cellData[r * cols + c]);
+    }
+  }
+
+  // Decode age data
+  juce::String ageB64 = gridXml->getStringAttribute("ages", "");
+  if (ageB64.isNotEmpty()) {
+    juce::MemoryBlock ageBlock;
+    if (ageBlock.fromBase64Encoding(ageB64) &&
+        ageBlock.getSize() >= static_cast<size_t>(rows * cols * 2)) {
+      auto &grid = engine->getGridMutable();
+      const auto *ageData = static_cast<const uint8_t *>(ageBlock.getData());
+      for (int r = 0; r < rows; ++r) {
+        for (int c = 0; c < cols; ++c) {
+          int idx = (r * cols + c) * 2;
+          uint16_t age = static_cast<uint16_t>(ageData[idx]) |
+                         (static_cast<uint16_t>(ageData[idx + 1]) << 8);
+          grid.setAge(r, c, age);
+        }
+      }
+    }
+  }
+
+  // Update snapshot for UI
+  gridSnapshot.copyFrom(engine->getGrid());
+  stagnationCounter = 0;
+  lastAliveCount = 0;
 }
 
 //==============================================================================

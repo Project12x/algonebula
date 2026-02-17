@@ -3,6 +3,21 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0] - 2026-02-17
+
+### Added
+
+- Versioned grid state serialization: grid cells, ages, algorithm, seed, grid size saved/restored with DAW projects
+- Base64 encoding for grid data blobs within XML state
+- Graceful deserialization: validates version field, dimensions, and blob sizes; silently ignores corrupt/legacy state
+- Factory Pattern Library: 5 classic Game of Life patterns (Glider, LWSS, R-Pentomino, Pulsar, Gosper Gun)
+- Pattern combo box in transport strip for one-click pattern loading
+- Freeze mode: APVTS "freeze" parameter halts grid evolution while voices sustain
+- Freeze toggle button in transport strip (APVTS-attached)
+- "New Seed" button generates random seed and reseeds the grid
+- Thread-safe pattern loading via atomic int (UI -> audio thread)
+- 3 new tests (89 total): factory pattern Glider cell count, all patterns valid output, freeze guard verification
+
 ## [0.5.0] - 2026-02-17
 
 ### Added

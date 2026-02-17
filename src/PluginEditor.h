@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "engine/FactoryPatternLibrary.h"
 #include "engine/FactoryPresets.h"
 #include "ui/GridComponent.h"
 #include "ui/NebulaLookAndFeel.h"
@@ -131,6 +132,18 @@ private:
 
   // --- Grid Size ---
   LabeledCombo gridSizeCombo;
+
+  // --- Freeze ---
+  juce::TextButton freezeBtn{"Freeze"};
+  std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
+      freezeAttach;
+
+  // --- New Seed ---
+  juce::TextButton newSeedBtn{"New Seed"};
+
+  // --- Factory Patterns ---
+  juce::ComboBox patternCombo;
+  juce::Label patternLabel;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

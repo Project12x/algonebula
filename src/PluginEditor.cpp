@@ -212,6 +212,62 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   // --- Grid Size ---
   setupCombo(gridSizeCombo, "Grid", "gridSize");
 
+  // --- Freeze toggle ---
+  freezeBtn.setClickingTogglesState(true);
+  freezeBtn.setColour(juce::TextButton::buttonColourId,
+                      NebulaColours::bg_surface);
+  freezeBtn.setColour(juce::TextButton::buttonOnColourId,
+                      NebulaColours::accent1.withAlpha(0.7f));
+  freezeBtn.setColour(juce::TextButton::textColourOffId,
+                      NebulaColours::text_normal);
+  freezeBtn.setColour(juce::TextButton::textColourOnId,
+                      NebulaColours::text_bright);
+  freezeBtn.setTooltip(
+      "Freeze the grid: stop CA evolution while voices sustain");
+  freezeAttach =
+      std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+          processor.getAPVTS(), "freeze", freezeBtn);
+  addAndMakeVisible(freezeBtn);
+
+  // --- New Seed button ---
+  newSeedBtn.setColour(juce::TextButton::buttonColourId,
+                       NebulaColours::bg_surface);
+  newSeedBtn.setColour(juce::TextButton::textColourOffId,
+                       NebulaColours::accent2);
+  newSeedBtn.onClick = [this]() {
+    // Generate a new random seed from system time
+    auto now = juce::Time::currentTimeMillis();
+    uint64_t newSeed = static_cast<uint64_t>(now);
+    newSeed ^= newSeed << 13;
+    newSeed ^= newSeed >> 7;
+    newSeed ^= newSeed << 17;
+    processor.setSeed(newSeed);
+    processor.reseedSymmetricRequested.store(true, std::memory_order_relaxed);
+    seedInput.setText(
+        juce::String::toHexString(static_cast<juce::int64>(newSeed)),
+        juce::dontSendNotification);
+  };
+  newSeedBtn.setTooltip("Generate a new random seed and reseed the grid");
+  addAndMakeVisible(newSeedBtn);
+
+  // --- Factory pattern selector ---
+  patternLabel.setText("Pattern", juce::dontSendNotification);
+  patternLabel.setFont(nebulaLnF.getMonoFont(10.0f));
+  patternLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
+  patternLabel.setJustificationType(juce::Justification::centredRight);
+  addAndMakeVisible(patternLabel);
+
+  patternCombo.setTextWhenNothingSelected("-- Pattern --");
+  for (int i = 0; i < FactoryPatternLibrary::kPatternCount; ++i)
+    patternCombo.addItem(FactoryPatternLibrary::getPattern(i).name, i + 1);
+  patternCombo.onChange = [this]() {
+    int idx = patternCombo.getSelectedId() - 1;
+    if (idx >= 0)
+      processor.loadPatternRequested.store(idx, std::memory_order_relaxed);
+  };
+  patternCombo.setTooltip("Load a classic Game of Life pattern into the grid");
+  addAndMakeVisible(patternCombo);
+
   // --- MIDI Keyboard ---
   midiKeyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId,
                          NebulaColours::accent1.withAlpha(0.5f));
@@ -364,7 +420,16 @@ void AlgoNebulaEditor::resized() {
     clearBtn.setBounds(transportRow.removeFromLeft(btnW));
     transportRow.removeFromLeft(4);
     reseedBtn.setBounds(transportRow.removeFromLeft(btnW));
-    transportRow.removeFromLeft(12);
+    transportRow.removeFromLeft(4);
+    freezeBtn.setBounds(transportRow.removeFromLeft(btnW));
+    transportRow.removeFromLeft(4);
+    newSeedBtn.setBounds(transportRow.removeFromLeft(70));
+    transportRow.removeFromLeft(8);
+
+    // Pattern combo
+    patternLabel.setBounds(transportRow.removeFromLeft(50));
+    patternCombo.setBounds(transportRow.removeFromLeft(100).reduced(0, 1));
+    transportRow.removeFromLeft(8);
 
     // Symmetry combo (no label in strip, compact)
     symmetryCombo.label.setBounds(transportRow.removeFromLeft(60));

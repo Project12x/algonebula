@@ -1,12 +1,12 @@
 # Project State
 
 ## Current Phase
-Phase 5.5 — Musicality Phase 2 (`v0.5.0`) -- COMPLETE
+Phase 6 — Grid Persistence + Seeding (`v0.6.0`) -- COMPLETE
 
 ## Build Status
 - VST3: Builds successfully (Release)
 - Standalone: Builds successfully (Release)
-- Tests: 86/86 passing (pure C++, no JUCE dependency)
+- Tests: 89/89 passing (pure C++, no JUCE dependency)
 
 ## Key Classes
 | Class | File | Status |
@@ -34,6 +34,7 @@ Phase 5.5 — Musicality Phase 2 (`v0.5.0`) -- COMPLETE
 | `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan, grid position tracking |
 | `CellEditQueue` | `src/engine/CellEditQueue.h` | Lock-free SPSC, 256 capacity, cache-line aligned |
 | `FactoryPresets` | `src/engine/FactoryPresets.h` | 11 presets (musical, experimental, utility categories) |
+| `FactoryPatternLibrary` | `src/engine/FactoryPatternLibrary.h` | 5 GoL seed patterns (Glider, LWSS, R-Pentomino, Pulsar, Gosper Gun) |
 
 ## Test Metrics
 - Grid tests: 9 (basics, wrapping, age, copy, equality)
@@ -52,18 +53,15 @@ Phase 5.5 — Musicality Phase 2 (`v0.5.0`) -- COMPLETE
 - SynthVoice: 3 (full chain output, 8-voice polyphony, sub tracking)
 - Phase 4 mutation: 4 (PolyBLEP presence, instant attack, cutoff offset, sub octave division)
 - CA Engine tests: 7 (Brian's Brain activity, Cyclic step, R-D fields, Lenia continuous state, Particle trails, Brownian deposits, engine type ID)
+- Phase 6 factory/freeze tests: 3 (Glider cell count, all patterns valid, freeze guard)
 - Mutation survival rate: 0% (all mutations caught)
 
-## Recent Changes (v0.5.0)
-- 7 CA engines: GoL, Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
-- Engine-aware GridComponent visualization with per-engine color palettes
-- Density-driven dynamics: grid density modulates voice gain and filter cutoff
-- Wired musicality params: noteProbability, velocityHumanize, melodicInertia
-- Tuned defaults for less cacophony: noteProbability 0.5, voiceCount 3, attack 0.8s, melodicInertia 0.5
-- Adjustable grid size: Small (8x12), Medium (12x16), Large (16x24), XL (24x32)
-- Grid size dropdown in transport strip UI
-- 11 factory presets with corrected algorithm indices
-- 2 new presets: Tidal Lenia, Chemical Garden
-- Hover tooltips on all 31 UI controls
-- SmoothedValue on filter cutoff, resonance, noise, sub level, density gain (20ms ramp)
-- Anti-cacophony: consonance filter, max triggers/step, rest probability, pitch gravity, density-adaptive voices
+## Recent Changes (v0.6.0)
+- Versioned grid state serialization (cells, ages, seed, algorithm, grid size as base64 XML blobs)
+- Graceful deserialization with version validation and corruption handling
+- Factory Pattern Library: 5 GoL seed patterns (Glider, LWSS, R-Pentomino, Pulsar, Gosper Gun)
+- Pattern combo box in transport strip
+- Freeze mode: halts grid evolution via APVTS param + processBlock guard
+- Freeze toggle + New Seed button in transport strip
+- Thread-safe pattern loading via atomic int
+- 3 new tests (89 total)

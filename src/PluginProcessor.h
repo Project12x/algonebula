@@ -12,6 +12,7 @@
 #include "engine/CellularEngine.h"
 #include "engine/ClockDivider.h"
 #include "engine/CyclicCA.h"
+#include "engine/FactoryPatternLibrary.h"
 #include "engine/GameOfLife.h"
 #include "engine/Grid.h"
 #include "engine/LeniaEngine.h"
@@ -74,6 +75,7 @@ public:
   std::atomic<bool> engineRunning{true};
   std::atomic<bool> clearRequested{false};
   std::atomic<bool> reseedSymmetricRequested{false};
+  std::atomic<int> loadPatternRequested{-1}; // -1 = none, 0+ = pattern index
 
   // --- Seed access ---
   uint64_t getSeed() const {

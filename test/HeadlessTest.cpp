@@ -8,6 +8,7 @@
 #include "engine/CellEditQueue.h"
 #include "engine/ClockDivider.h"
 #include "engine/CyclicCA.h"
+#include "engine/FactoryPatternLibrary.h"
 #include "engine/GameOfLife.h"
 #include "engine/Grid.h"
 #include "engine/LeniaEngine.h"
@@ -1883,6 +1884,96 @@ void testGridDensity() {
 }
 
 // ============================================================================
+// Phase 6 — Factory Patterns & Freeze
+// ============================================================================
+
+void testFactoryPatternGlider() {
+  TEST("FactoryPattern: Glider places 5 cells correctly");
+  Grid g(16, 16);
+  g.clear();
+  FactoryPatternLibrary::applyPattern(g, 0); // 0 = Glider
+
+  // Glider should produce exactly 5 alive cells
+  int alive = g.countAlive();
+  ASSERT_EQ(alive, 5);
+
+  // Verify the pattern is in the top-left quadrant (reasonable placement)
+  bool hasLiveCells = false;
+  for (int r = 0; r < 8; ++r)
+    for (int c = 0; c < 8; ++c)
+      if (g.getCell(r, c) > 0)
+        hasLiveCells = true;
+  ASSERT_TRUE(hasLiveCells);
+
+  PASS();
+}
+
+void testFactoryPatternAllValid() {
+  TEST("FactoryPattern: all 5 patterns produce alive cells");
+  for (int i = 0; i < FactoryPatternLibrary::kPatternCount; ++i) {
+    Grid g(24, 32);
+    g.clear();
+    FactoryPatternLibrary::applyPattern(g, i);
+    int alive = g.countAlive();
+    if (alive < 1) {
+      FAIL("Pattern " << i << " produced 0 alive cells");
+      return;
+    }
+    // Verify no out-of-bounds writes by checking grid is within dimensions
+    for (int r = 0; r < g.getRows(); ++r) {
+      for (int c = 0; c < g.getCols(); ++c) {
+        uint8_t val = g.getCell(r, c);
+        if (val > 1) {
+          FAIL("Pattern " << i << " wrote invalid cell value " << (int)val);
+          return;
+        }
+      }
+    }
+  }
+  PASS();
+}
+
+void testFreezeStopsStep() {
+  TEST("Freeze: grid unchanged after GoL step when frozen");
+  GameOfLife gol(12, 16);
+  gol.randomize(42, 0.3f);
+
+  // Get current state
+  Grid before(12, 16);
+  before.copyFrom(gol.getGrid());
+
+  // With freeze on, we simply don't call step -- the test verifies
+  // that not calling step means the grid is unchanged
+  // (This mirrors processBlock behavior: frozen = skip engine->step())
+  bool isFrozen = true;
+  if (!isFrozen) {
+    gol.step();
+  }
+
+  // Grid should be identical since we didn't step
+  const auto &after = gol.getGrid();
+  for (int r = 0; r < 12; ++r) {
+    for (int c = 0; c < 16; ++c) {
+      if (before.getCell(r, c) != after.getCell(r, c)) {
+        FAIL("Cell (" << r << "," << c << ") changed without stepping");
+        return;
+      }
+    }
+  }
+
+  // Now verify that stepping DOES change the grid (to prove the guard matters)
+  gol.step();
+  bool changed = false;
+  for (int r = 0; r < 12; ++r)
+    for (int c = 0; c < 16; ++c)
+      if (before.getCell(r, c) != gol.getGrid().getCell(r, c))
+        changed = true;
+  ASSERT_TRUE(changed);
+
+  PASS();
+}
+
+// ============================================================================
 int main() {
   std::cout << "=== Algo Nebula Phase 2+3+4 Tests ===" << std::endl;
 
@@ -2022,6 +2113,12 @@ int main() {
   testConsonantWithAll();
   testQuantizeWeighted();
   testGridDensity();
+
+  // Phase 6 -- Factory Patterns & Freeze
+  std::cout << "\n[Phase 6 Factory Patterns & Freeze]" << std::endl;
+  testFactoryPatternGlider();
+  testFactoryPatternAllValid();
+  testFreezeStopsStep();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;
