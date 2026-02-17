@@ -3,6 +3,27 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.0] - 2026-02-17
+
+### Added
+
+- 6 distinct CA engines: Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
+- Each engine is a unique computational model with its own data structures (not just GoL rule variants)
+- Engine-aware GridComponent visualization: each engine renders with distinct color palette
+  - Brian's Brain: cyan(on)/amber(dying) 3-state display
+  - Cyclic CA: HSL hue wheel mapped from cell state
+  - Reaction-Diffusion, Lenia, Swarm, Brownian: intensity heatmaps from native data
+- Density-driven dynamics modulation: grid density scales voice gain (dense=softer) and filter cutoff
+- Engine name displayed alongside generation counter in status bar
+- 6 new NebulaColours tokens for engine-specific visualization
+- `getEngine()` and `getDensityGain()` accessors on PluginProcessor
+- 7 new CA engine unit tests (82 total, all passing)
+
+### Changed
+
+- Algorithm selector now creates genuinely different engine types (was GoL rule presets)
+- PluginProcessor refactored to `unique_ptr<CellularEngine>` with factory pattern for engine switching
+
 ## [0.4.5] - 2026-02-16
 
 ### Added
