@@ -79,6 +79,12 @@ public:
     return count;
   }
 
+  /// Get density as a fraction [0.0, 1.0].
+  float getDensity() const {
+    int total = numRows * numCols;
+    return (total > 0) ? static_cast<float>(countAlive()) / total : 0.0f;
+  }
+
   /// Check grid equality (dimensions + cell states).
   bool operator==(const Grid &other) const {
     if (numRows != other.numRows || numCols != other.numCols)

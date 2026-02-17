@@ -192,6 +192,23 @@ AlgoNebulaProcessor::createParameterLayout() {
                         "XL (24x32)"},
       1)); // default to Medium
 
+  // --- Anti-cacophony ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("consonance", 1), "Consonance",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("maxTriggersPerStep", 1), "Max Triggers/Step", 1, 8,
+      3));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("restProbability", 1), "Rest Probability",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.2f));
+
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("pitchGravity", 1), "Pitch Gravity",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.3f));
+
   return layout;
 }
 
@@ -479,122 +496,192 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     float gateTimeFrac = apvts.getRawParameterValue("gateTime")->load();
     float strumSpread = apvts.getRawParameterValue("strumSpread")->load();
 
+    // Anti-cacophony params
+    float consonance = apvts.getRawParameterValue("consonance")->load();
+    int maxTrigsPerStep = static_cast<int>(
+        apvts.getRawParameterValue("maxTriggersPerStep")->load());
+    float restProb = apvts.getRawParameterValue("restProbability")->load();
+    float pitchGravity = apvts.getRawParameterValue("pitchGravity")->load();
+
     // Calculate step interval in samples for gate time
     double stepIntervalSec = clock.getStepIntervalSeconds();
     int stepIntervalSamples =
         static_cast<int>(stepIntervalSec * currentSampleRate);
 
-    for (int col = 0; col < grid.getCols() && voicesUsed < maxVoices; ++col) {
-      for (int row = 0; row < grid.getRows(); ++row) {
-        if (engine->cellActivated(row, col)) {
-          // --- Note probability: skip trigger randomly ---
-          musicRng ^= musicRng << 13;
-          musicRng ^= musicRng >> 7;
-          musicRng ^= musicRng << 17;
-          float roll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-          if (roll > noteProb)
-            break; // Skip this column entirely
+    // --- Rest probability: chance of skipping ALL triggers this step ---
+    if (restProb > 0.0f) {
+      musicRng ^= musicRng << 13;
+      musicRng ^= musicRng >> 7;
+      musicRng ^= musicRng << 17;
+      float restRoll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+      if (restRoll < restProb)
+        goto skipTriggers; // Full rest for this step
+    }
 
-          // --- Melodic inertia: reuse last pitch or compute new ---
-          int midiNote;
-          musicRng ^= musicRng << 13;
-          musicRng ^= musicRng >> 7;
-          musicRng ^= musicRng << 17;
-          float inertiaRoll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-          if (inertiaRoll < melInertia && lastTriggeredMidiNote > 0) {
-            midiNote = lastTriggeredMidiNote;
-          } else {
-            midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
-          }
-          lastTriggeredMidiNote = midiNote;
-          float frequency = tuning.getFrequency(midiNote);
+    // --- Density-adaptive voice count ---
+    {
+      float gridDensity = engine->getGrid().getDensity();
+      int effectiveMaxVoices = maxVoices;
+      if (gridDensity > 0.3f) {
+        // Linearly reduce voices: at 100% density, halve the count
+        float reduction = (gridDensity - 0.3f) / 0.7f * 0.5f;
+        effectiveMaxVoices =
+            std::max(1, maxVoices - static_cast<int>(reduction * maxVoices));
+      }
 
-          // --- Velocity humanization + engine intensity ---
-          float vel = lastMidiVelocity;
+      // Collect currently-active MIDI notes for consonance checking
+      int activeNotes[kMaxVoices];
+      int activeNoteCount = 0;
+      for (int v = 0; v < kMaxVoices; ++v) {
+        if (voices[v].isActive() && voices[v].getCurrentNote() > 0) {
+          activeNotes[activeNoteCount++] = voices[v].getCurrentNote();
+        }
+      }
 
-          // Engine-specific intensity modulates velocity
-          float cellIntensity = engine->getCellIntensity(row, col);
-          vel *= cellIntensity;
+      int triggersThisStep = 0;
 
-          if (velHumanize > 0.0f) {
+      for (int col = 0;
+           col < grid.getCols() && voicesUsed < effectiveMaxVoices &&
+           triggersThisStep < maxTrigsPerStep;
+           ++col) {
+        for (int row = 0; row < grid.getRows(); ++row) {
+          if (engine->cellActivated(row, col)) {
+            // --- Note probability: skip trigger randomly ---
             musicRng ^= musicRng << 13;
             musicRng ^= musicRng >> 7;
             musicRng ^= musicRng << 17;
-            float velOffset =
-                (static_cast<float>(musicRng & 0xFFFF) / 65535.0f - 0.5f) *
-                2.0f * velHumanize;
-            vel = std::clamp(vel + velOffset, 0.1f, 1.0f);
-          }
+            float roll = static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+            if (roll > noteProb)
+              break; // Skip this column entirely
 
-          // Find a free voice
-          int voiceIdx = -1;
-          for (int v = 0; v < kMaxVoices; ++v) {
-            if (!voices[v].isActive()) {
-              voiceIdx = v;
-              break;
+            // --- Melodic inertia: reuse last pitch or compute new ---
+            int midiNote;
+            musicRng ^= musicRng << 13;
+            musicRng ^= musicRng >> 7;
+            musicRng ^= musicRng << 17;
+            float inertiaRoll =
+                static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+            if (inertiaRoll < melInertia && lastTriggeredMidiNote > 0) {
+              midiNote = lastTriggeredMidiNote;
+            } else if (pitchGravity > 0.0f) {
+              // --- Pitch gravity: bias toward chord tones ---
+              midiNote = quantizer.quantizeWeighted(
+                  row, col, 3, 3, grid.getCols(), pitchGravity, musicRng);
+            } else {
+              midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
             }
-          }
-          // Steal quietest if no free voice
-          if (voiceIdx < 0) {
-            double quietest = 999.0;
-            for (int v = 0; v < kMaxVoices; ++v) {
-              if (voices[v].getEnvelopeLevel() < quietest) {
-                quietest = voices[v].getEnvelopeLevel();
-                voiceIdx = v;
+
+            // --- Consonance filter: reject dissonant intervals ---
+            if (consonance > 0.0f && activeNoteCount > 0) {
+              if (!ScaleQuantizer::isConsonantWithAll(midiNote, activeNotes,
+                                                      activeNoteCount)) {
+                // Probabilistic rejection based on consonance strength
+                musicRng ^= musicRng << 13;
+                musicRng ^= musicRng >> 7;
+                musicRng ^= musicRng << 17;
+                float consRoll =
+                    static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+                if (consRoll < consonance)
+                  break; // Skip this column (dissonant)
               }
             }
-          }
 
-          if (voiceIdx >= 0) {
-            int shapeIdx = (waveshapeIdx + col) % waveCount;
-            auto shape = static_cast<PolyBLEPOscillator::Shape>(shapeIdx);
-            voices[voiceIdx].setWaveshape(shape);
-            voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
-                                               release, currentSampleRate);
-            voices[voiceIdx].setFilterCutoff(modFilterCutoff);
-            voices[voiceIdx].setFilterResonance(filterRes);
-            voices[voiceIdx].setFilterMode(
-                static_cast<SVFilter::Mode>(filterModeIdx));
-            voices[voiceIdx].setNoiseLevel(noiseLevel);
-            voices[voiceIdx].setSubLevel(subLevel);
-            voices[voiceIdx].setSubOctave(
-                static_cast<SubOscillator::OctaveMode>(subOctIdx));
+            lastTriggeredMidiNote = midiNote;
+            float frequency = tuning.getFrequency(midiNote);
 
-            double pan = (grid.getCols() > 1)
-                             ? (2.0 * col / (grid.getCols() - 1) - 1.0)
-                             : 0.0;
-            voices[voiceIdx].setPan(pan);
+            // --- Velocity humanization + engine intensity ---
+            float vel = lastMidiVelocity;
 
-            voices[voiceIdx].setGridPosition(row, col);
+            // Engine-specific intensity modulates velocity
+            float cellIntensity = engine->getCellIntensity(row, col);
+            vel *= cellIntensity;
 
-            // --- Gate time: set per-voice auto-release countdown ---
-            if (gateTimeFrac < 1.0f && stepIntervalSamples > 0) {
-              int gateSamples =
-                  static_cast<int>(gateTimeFrac * stepIntervalSamples);
-              if (gateSamples < 1)
-                gateSamples = 1;
-              voices[voiceIdx].setGateTime(gateSamples);
+            if (velHumanize > 0.0f) {
+              musicRng ^= musicRng << 13;
+              musicRng ^= musicRng >> 7;
+              musicRng ^= musicRng << 17;
+              float velOffset =
+                  (static_cast<float>(musicRng & 0xFFFF) / 65535.0f - 0.5f) *
+                  2.0f * velHumanize;
+              vel = std::clamp(vel + velOffset, 0.1f, 1.0f);
             }
 
-            // --- Strum spread: onset delay per column position ---
-            if (strumSpread > 0.0f) {
-              // strumSpread is in ms (0-50). Spread across columns.
-              float colFrac = (grid.getCols() > 1) ? static_cast<float>(col) /
-                                                         (grid.getCols() - 1)
-                                                   : 0.0f;
-              int delaySamples = static_cast<int>(colFrac * strumSpread *
-                                                  0.001f * currentSampleRate);
-              voices[voiceIdx].setOnsetDelay(delaySamples);
+            // Find a free voice
+            int voiceIdx = -1;
+            for (int v = 0; v < kMaxVoices; ++v) {
+              if (!voices[v].isActive()) {
+                voiceIdx = v;
+                break;
+              }
+            }
+            // Steal quietest if no free voice
+            if (voiceIdx < 0) {
+              double quietest = 999.0;
+              for (int v = 0; v < kMaxVoices; ++v) {
+                if (voices[v].getEnvelopeLevel() < quietest) {
+                  quietest = voices[v].getEnvelopeLevel();
+                  voiceIdx = v;
+                }
+              }
             }
 
-            voices[voiceIdx].noteOn(midiNote, vel, frequency,
-                                    currentSampleRate);
-            ++voicesUsed;
+            if (voiceIdx >= 0) {
+              int shapeIdx = (waveshapeIdx + col) % waveCount;
+              auto shape = static_cast<PolyBLEPOscillator::Shape>(shapeIdx);
+              voices[voiceIdx].setWaveshape(shape);
+              voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
+                                                 release, currentSampleRate);
+              voices[voiceIdx].setFilterCutoff(modFilterCutoff);
+              voices[voiceIdx].setFilterResonance(filterRes);
+              voices[voiceIdx].setFilterMode(
+                  static_cast<SVFilter::Mode>(filterModeIdx));
+              voices[voiceIdx].setNoiseLevel(noiseLevel);
+              voices[voiceIdx].setSubLevel(subLevel);
+              voices[voiceIdx].setSubOctave(
+                  static_cast<SubOscillator::OctaveMode>(subOctIdx));
+
+              double pan = (grid.getCols() > 1)
+                               ? (2.0 * col / (grid.getCols() - 1) - 1.0)
+                               : 0.0;
+              voices[voiceIdx].setPan(pan);
+
+              voices[voiceIdx].setGridPosition(row, col);
+
+              // --- Gate time: set per-voice auto-release countdown ---
+              if (gateTimeFrac < 1.0f && stepIntervalSamples > 0) {
+                int gateSamples =
+                    static_cast<int>(gateTimeFrac * stepIntervalSamples);
+                if (gateSamples < 1)
+                  gateSamples = 1;
+                voices[voiceIdx].setGateTime(gateSamples);
+              }
+
+              // --- Strum spread: onset delay per column position ---
+              if (strumSpread > 0.0f) {
+                float colFrac = (grid.getCols() > 1) ? static_cast<float>(col) /
+                                                           (grid.getCols() - 1)
+                                                     : 0.0f;
+                int delaySamples = static_cast<int>(colFrac * strumSpread *
+                                                    0.001f * currentSampleRate);
+                voices[voiceIdx].setOnsetDelay(delaySamples);
+              }
+
+              voices[voiceIdx].noteOn(midiNote, vel, frequency,
+                                      currentSampleRate);
+              ++voicesUsed;
+              ++triggersThisStep;
+
+              // Add to active notes for consonance checking of subsequent
+              // triggers
+              if (activeNoteCount < kMaxVoices)
+                activeNotes[activeNoteCount++] = midiNote;
+            }
+            break; // One note per column
           }
-          break; // One note per column
         }
       }
     }
+  skipTriggers:;
   }
 
   // Render all active voices per-sample

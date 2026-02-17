@@ -101,6 +101,91 @@ public:
   /// Get current scale.
   Scale getCurrentScale() const { return currentScale; }
 
+  /// Check if two MIDI notes form a consonant interval.
+  /// Consonant: unison(0), m3(3), M3(4), P4(5), P5(7), m6(8), M6(9), octave(12)
+  /// Dissonant: m2(1), M2(2), tritone(6), m7(10), M7(11)
+  static bool isConsonant(int note1, int note2) {
+    int interval = std::abs(note1 - note2) % 12;
+    // Lookup table: 1 = consonant, 0 = dissonant
+    static constexpr int consonantTable[12] = {1, 0, 0, 1, 1, 1,
+                                               0, 1, 1, 1, 0, 0};
+    return consonantTable[interval] != 0;
+  }
+
+  /// Check if a candidate note is consonant with ALL active notes.
+  /// Returns true if activeCount is 0 (no conflicts possible).
+  static bool isConsonantWithAll(int candidateNote, const int *activeNotes,
+                                 int activeCount) {
+    for (int i = 0; i < activeCount; ++i) {
+      if (!isConsonant(candidateNote, activeNotes[i]))
+        return false;
+    }
+    return true;
+  }
+
+  /// Quantize with gravity toward chord tones (root/5th/3rd).
+  /// @param gravity 0.0 = normal quantize, 1.0 = always snap to chord tone.
+  /// @param rng Pointer to RNG state for probabilistic snapping.
+  int quantizeWeighted(int cellRow, int cellCol, int baseOctave, int octaveSpan,
+                       int gridCols, float gravity, uint64_t &rng) const {
+    // Always start with normal quantization
+    int normal = quantize(cellRow, cellCol, baseOctave, octaveSpan, gridCols);
+    if (gravity <= 0.0f)
+      return normal;
+
+    // Roll to decide if we snap to chord tone
+    rng ^= rng << 13;
+    rng ^= rng >> 7;
+    rng ^= rng << 17;
+    float roll = static_cast<float>(rng & 0xFFFF) / 65535.0f;
+    if (roll >= gravity)
+      return normal; // Keep normal pitch
+
+    // Snap to nearest chord tone (root, 3rd, 5th in current scale)
+    // Chord tones are scale degrees 0, 2, 4 (root, 3rd, 5th in diatonic)
+    const auto &degrees = scaleDegrees[static_cast<int>(currentScale)];
+    int degreeCount = scaleDegreeCounts[static_cast<int>(currentScale)];
+    if (degreeCount < 3)
+      return normal; // Not enough degrees for chord tones
+
+    // Pick chord tone indices based on scale size
+    int chordDegreeIndices[3] = {0, 2, 4}; // root, 3rd, 5th in scale
+    if (degreeCount == 5) {
+      // Pentatonic: root(0), 3rd(2), 5th(3)
+      chordDegreeIndices[1] = 2;
+      chordDegreeIndices[2] = 3;
+    }
+
+    // Find which octave the normal note is in
+    int noteInOctave = (normal - currentRoot) % 12;
+    if (noteInOctave < 0)
+      noteInOctave += 12;
+    int octaveBase = normal - noteInOctave;
+
+    // Find nearest chord tone
+    int bestNote = normal;
+    int bestDist = 999;
+    for (int ci = 0; ci < 3; ++ci) {
+      int idx = chordDegreeIndices[ci];
+      if (idx >= degreeCount)
+        continue;
+      int chordSemitone = degrees[idx];
+      int candidate = octaveBase + chordSemitone;
+      // Check this octave and adjacent
+      for (int octOff = -1; octOff <= 1; ++octOff) {
+        int c = candidate + octOff * 12;
+        if (c < 0 || c > 127)
+          continue;
+        int dist = std::abs(c - normal);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestNote = c;
+        }
+      }
+    }
+    return bestNote;
+  }
+
 private:
   void buildAllTables() {
     // Chromatic: all 12 semitones

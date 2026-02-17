@@ -1788,6 +1788,101 @@ void testEngineTypeIdentification() {
 // ============================================================================
 // Main
 // ============================================================================
+// Phase 5.5 -- Anti-Cacophony Tests
+// ============================================================================
+
+void testConsonanceFilter() {
+  TEST("isConsonant - all 12 intervals");
+  // Consonant: 0(unison), 3(m3), 4(M3), 5(P4), 7(P5), 8(m6), 9(M6)
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 60)); // Unison
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 63)); // m3
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 64)); // M3
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 65)); // P4
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 67)); // P5
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 68)); // m6
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(60, 69)); // M6
+  // Dissonant: 1(m2), 2(M2), 6(tritone), 10(m7), 11(M7)
+  ASSERT_TRUE(!ScaleQuantizer::isConsonant(60, 61)); // m2
+  ASSERT_TRUE(!ScaleQuantizer::isConsonant(60, 62)); // M2
+  ASSERT_TRUE(!ScaleQuantizer::isConsonant(60, 66)); // tritone
+  ASSERT_TRUE(!ScaleQuantizer::isConsonant(60, 70)); // m7
+  ASSERT_TRUE(!ScaleQuantizer::isConsonant(60, 71)); // M7
+  // Cross-octave: P5 across octaves
+  ASSERT_TRUE(ScaleQuantizer::isConsonant(48, 67)); // P5 + octave
+  PASS();
+}
+
+void testConsonantWithAll() {
+  TEST("isConsonantWithAll - 0/1/3 active notes");
+  // No active notes: always consonant
+  ASSERT_TRUE(ScaleQuantizer::isConsonantWithAll(60, nullptr, 0));
+
+  // 1 active note: C4(60), candidate E4(64) -> M3 = consonant
+  int active1[] = {60};
+  ASSERT_TRUE(ScaleQuantizer::isConsonantWithAll(64, active1, 1));
+  // C4(60), candidate D4(62) -> M2 = dissonant
+  ASSERT_TRUE(!ScaleQuantizer::isConsonantWithAll(62, active1, 1));
+
+  // 3 active notes: C4(60), E4(64), G4(67) - major chord
+  int active3[] = {60, 64, 67};
+  // C5(72) consonant with all (octave, M3, P4)
+  ASSERT_TRUE(ScaleQuantizer::isConsonantWithAll(72, active3, 3));
+  // D4(62) dissonant with C4 (M2)
+  ASSERT_TRUE(!ScaleQuantizer::isConsonantWithAll(62, active3, 3));
+  PASS();
+}
+
+void testQuantizeWeighted() {
+  TEST("quantizeWeighted - gravity=1.0 snaps to chord tones");
+  ScaleQuantizer q;
+  q.setScale(ScaleQuantizer::Scale::Major, 0); // C Major
+  uint64_t rng = 42;
+
+  // With gravity=1.0, all notes should snap to root(C), 3rd(E), or 5th(G)
+  // in terms of semitones from root: 0, 4, 7
+  bool allChordTones = true;
+  for (int col = 0; col < 16; ++col) {
+    int note = q.quantizeWeighted(0, col, 3, 3, 16, 1.0f, rng);
+    int semitone = (note - 0) % 12; // Root is C=0
+    if (semitone < 0)
+      semitone += 12;
+    if (semitone != 0 && semitone != 4 && semitone != 7) {
+      allChordTones = false;
+      break;
+    }
+  }
+  ASSERT_TRUE(allChordTones);
+
+  // With gravity=0.0, should behave like normal quantize
+  uint64_t rng2 = 42;
+  for (int col = 0; col < 7; ++col) {
+    int weighted = q.quantizeWeighted(0, col, 3, 3, 16, 0.0f, rng2);
+    int normal = q.quantize(0, col, 3, 3, 16);
+    ASSERT_EQ(weighted, normal);
+  }
+  PASS();
+}
+
+void testGridDensity() {
+  TEST("Grid::getDensity - empty/full/partial");
+  Grid g(4, 4); // 16 cells
+  // Empty grid
+  ASSERT_NEAR(g.getDensity(), 0.0f, 0.01f);
+  // Full grid
+  for (int r = 0; r < 4; ++r)
+    for (int c = 0; c < 4; ++c)
+      g.setCell(r, c, 1);
+  ASSERT_NEAR(g.getDensity(), 1.0f, 0.01f);
+  // Half full
+  g.clear();
+  for (int r = 0; r < 2; ++r)
+    for (int c = 0; c < 4; ++c)
+      g.setCell(r, c, 1);
+  ASSERT_NEAR(g.getDensity(), 0.5f, 0.01f);
+  PASS();
+}
+
+// ============================================================================
 int main() {
   std::cout << "=== Algo Nebula Phase 2+3+4 Tests ===" << std::endl;
 
@@ -1920,6 +2015,13 @@ int main() {
   testParticleSwarmBasics();
   testBrownianFieldBasics();
   testEngineTypeIdentification();
+
+  // Phase 5.5 -- Anti-Cacophony
+  std::cout << "\n[Anti-Cacophony Tests]" << std::endl;
+  testConsonanceFilter();
+  testConsonantWithAll();
+  testQuantizeWeighted();
+  testGridDensity();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;

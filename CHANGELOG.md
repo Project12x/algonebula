@@ -32,6 +32,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Engine-specific intensity: continuous engines modulate velocity from native float fields
 - `getCellIntensity()` / `cellActivated()` virtual methods on CellularEngine base class
 - `getStepIntervalSeconds()` convenience method on ClockDivider
+- Consonance filter: interval-aware dissonance rejection (probabilistic, per-note)
+- Max triggers per step: cap on new note-ons per engine step (1-8, default 3)
+- Rest probability: chance of full-step silence for rhythmic breathing (0-1, default 0.2)
+- Pitch gravity: bias toward root/5th/3rd chord tones (0-1, default 0.3)
+- Density-adaptive voice count: auto-reduces available voices when grid is dense (>30%)
+- `Grid::getDensity()` and `ScaleQuantizer::isConsonant/WithAll/quantizeWeighted` utility methods
+- 4 new anti-cacophony unit tests (86 total, all passing)
 
 ### Changed
 
