@@ -354,6 +354,30 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       currentSeed.store(reseedRng, std::memory_order_relaxed);
       stagnationCounter = 0;
     }
+
+    // Overpopulation cap: if grid is >70% full for 4+ steps, thin it
+    const int totalCells =
+        engine.getGrid().getRows() * engine.getGrid().getCols();
+    if (currentAlive > totalCells * 7 / 10) {
+      ++overpopCounter;
+    } else {
+      overpopCounter = 0;
+    }
+
+    if (overpopCounter >= 4) {
+      // Clear and reseed sparsely to break saturation
+      reseedRng ^= reseedRng << 13;
+      reseedRng ^= reseedRng >> 7;
+      reseedRng ^= reseedRng << 17;
+      currentSeed.store(reseedRng, std::memory_order_relaxed);
+      if (useSymmetry)
+        engine.randomizeSymmetric(reseedRng, 0.15f);
+      else
+        engine.randomize(reseedRng, 0.15f);
+      overpopCounter = 0;
+      stagnationCounter = 0;
+      lastAliveCount = 0;
+    }
   }
 
   // On step: scan grid for active cells, map to notes, trigger voices

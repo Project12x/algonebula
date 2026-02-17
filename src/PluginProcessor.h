@@ -117,6 +117,7 @@ private:
   // --- Auto-reseed stagnation tracking ---
   int lastAliveCount = 0;
   int stagnationCounter = 0;
+  int overpopCounter = 0;
   uint64_t reseedRng = 12345;
   std::atomic<uint64_t> currentSeed{12345};
   std::atomic<bool> seedChanged{false};
