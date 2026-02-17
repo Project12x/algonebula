@@ -276,11 +276,12 @@ Explicit pause-and-review checkpoints:
 
 **Goal:** Wire remaining musicality params and add engine-specific note triggering.
 
-- [ ] `gateTime`: per-voice sample countdown timer in SynthVoice (staccato at < 1.0)
-- [ ] `strumSpread`: onset delay per column position in SynthVoice
-- [ ] Engine-specific triggering: `getCellIntensity()` virtual on CellularEngine
-- [ ] Continuous engines (Lenia, R-D, Brownian, Swarm) modulate velocity by cell brightness
-- [ ] `cellActivated()` virtual for threshold-crossing detection on continuous engines
+- [x] `gateTime`: per-voice sample countdown timer in SynthVoice (staccato at < 1.0)
+- [x] `strumSpread`: onset delay per column position in SynthVoice
+- [x] Engine-specific triggering: `getCellIntensity()` virtual on CellularEngine
+- [x] Continuous engines (Lenia, R-D, Brownian, Swarm) modulate velocity by cell brightness
+- [x] `cellActivated()` virtual for threshold-crossing detection on continuous engines
+- [ ] `SmoothedValue` on all continuous parameters (filter cutoff, resonance, volume, pan, all musicality knobs) to prevent zipper noise on automation
 
 **Testing Milestone:**
 - [ ] gateTime < 1.0 produces shorter notes than step interval
@@ -304,6 +305,7 @@ Explicit pause-and-review checkpoints:
   - Cell age grid (compressed)
 - [ ] Seed parameter: UI display (copyable), paste, "New Seed" button
 - [ ] Factory pattern library (GoL patterns: Glider, Pulsar, Gosper Gun, R-Pentomino, etc.)
+- [ ] CA-level freeze/drone mode: hold current grid state (stop stepping) while voices sustain, togglable via UI button and MIDI CC
 
 **Testing Milestone — Correctness:**
 - [ ] Save/load roundtrip preserves exact grid state (bit-perfect comparison)
@@ -339,6 +341,9 @@ Explicit pause-and-review checkpoints:
 - [ ] `MidiOutputGenerator`: mirror generated notes, channel select, internal audio toggle
 - [ ] `MidiLearnManager`: right-click popup, CC capture, mapping persistence
 - [ ] Visual: MIDI badge on mapped controls, learn-mode pulse animation
+- [ ] Chord/scale lock from MIDI: detect incoming chords and auto-adapt scale quantizer to match performer's harmonic context
+- [ ] MIDI clock input: accept external MIDI clock as step source (for hardware setups — Elektron, modular, etc.)
+- [ ] MIDI program change: switch factory/user presets via MIDI PC messages
 
 **Testing Milestone — Correctness:**
 - [ ] MIDI note C4 input sets quantizer root to C (verified by output frequencies)
@@ -563,6 +568,8 @@ Explicit pause-and-review checkpoints:
 - [ ] Grid resize + pattern presets + seed display
 - [ ] Theme system: Deep Nebula, Synthwave Sunset, Void, Solar Flare
 - [ ] DPI-aware, minimum 900x600, resizable with aspect ratio lock
+- [ ] UI section headers: visible labels for each bottom-panel section (Clock, Tuning, Ambient, Anti-Cacophony, Humanize, Global)
+- [ ] Tooltips: hover descriptions for all parameters explaining their musical effect
 
 **Testing Milestone:**
 - [ ] **Manual: All knobs/sliders respond to mouse drag**
