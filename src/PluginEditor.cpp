@@ -166,9 +166,9 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
   };
 
   const int margin = 16;
-  const int headerH = 50;
+  const int headerH = 80;
   const int selectorRowH = 50;
-  const int gridBottom = headerH + selectorRowH + 10;
+  const int gridBottom = headerH + 10;
   const int controlsAreaLeft = static_cast<int>(getWidth() * 0.52f);
 
   // Right-side section labels
@@ -199,13 +199,14 @@ void AlgoNebulaEditor::resized() {
 
   auto area = getLocalBounds();
 
-  // --- Header + CPU meter + Preset ---
+  // --- Header: title row (first 38px) + selector row (remaining) ---
   cpuMeterLabel.setBounds(getWidth() - 110, 12, 94, 14);
-  presetLabel.setBounds(getWidth() - 380, 12, 50, 14);
-  presetCombo.setBounds(getWidth() - 325, 10, 200, 24);
+  presetLabel.setBounds(220, 10, 50, 20);
+  presetCombo.setBounds(275, 8, 200, 24);
 
-  // --- Top selector row ---
-  auto selectorRow = area.removeFromTop(headerH).reduced(margin, 0);
+  // --- Top selector row (below title) ---
+  auto titleRow = area.removeFromTop(38);
+  auto selectorRow = area.removeFromTop(headerH - 38).reduced(margin, 0);
   selectorRow.removeFromTop(4);
   const int comboW = (selectorRow.getWidth() - 30) / 4;
 

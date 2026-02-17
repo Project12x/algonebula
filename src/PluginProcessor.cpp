@@ -204,7 +204,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
                                       true);
 
-  // MIDI note-on: key tracking, velocity, and reseed
+  // MIDI note-on: key tracking and velocity (no grid reseed — preserves
+  // symmetric CA growth patterns from manual seeds)
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
     if (msg.isNoteOn()) {
@@ -217,14 +218,6 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
       // Store velocity for voice triggering
       lastMidiVelocity = msg.getFloatVelocity();
-
-      // Reseed grid with note-derived seed
-      reseedRng ^= static_cast<uint64_t>(msg.getNoteNumber()) * 2654435761ULL;
-      reseedRng ^= reseedRng << 13;
-      reseedRng ^= reseedRng >> 7;
-      reseedRng ^= reseedRng << 17;
-      engine.randomize(reseedRng, 0.3f);
-      stagnationCounter = 0;
     }
   }
 
@@ -294,16 +287,28 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
     if (stagnationCounter >= 8) {
-      // Inject ~5 random cells
+      // Inject ~5 cells with 4-fold mirror symmetry to preserve
+      // beautiful symmetric growth patterns
       auto &grid = engine.getGridMutable();
+      const int rows = grid.getRows();
+      const int cols = grid.getCols();
       for (int i = 0; i < 5; ++i) {
         reseedRng ^= reseedRng << 13;
         reseedRng ^= reseedRng >> 7;
         reseedRng ^= reseedRng << 17;
-        int r = static_cast<int>(reseedRng % grid.getRows());
-        int c = static_cast<int>((reseedRng >> 16) % grid.getCols());
+        int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
+        int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
+        int mirrorR = rows - 1 - r;
+        int mirrorC = cols - 1 - c;
+        // Set all 4 mirrored positions
         grid.setCell(r, c, 1);
         grid.setAge(r, c, 1);
+        grid.setCell(r, mirrorC, 1);
+        grid.setAge(r, mirrorC, 1);
+        grid.setCell(mirrorR, c, 1);
+        grid.setAge(mirrorR, c, 1);
+        grid.setCell(mirrorR, mirrorC, 1);
+        grid.setAge(mirrorR, mirrorC, 1);
       }
       stagnationCounter = 0;
     }

@@ -19,6 +19,12 @@ public:
   /// @param density  Fill ratio [0, 1] for random initialization.
   virtual void randomize(uint64_t seed, float density) = 0;
 
+  /// Reset with 4-fold mirror symmetry (random in one quadrant, mirrored).
+  /// Produces visually striking symmetric growth patterns.
+  /// @param seed  Deterministic PRNG seed.
+  /// @param density  Fill ratio [0, 1] for the source quadrant.
+  virtual void randomizeSymmetric(uint64_t seed, float density) = 0;
+
   /// Reset to a completely empty grid.
   virtual void clear() = 0;
 

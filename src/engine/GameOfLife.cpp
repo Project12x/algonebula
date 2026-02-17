@@ -121,6 +121,41 @@ void GameOfLife::randomize(uint64_t seed, float density) {
   }
 }
 
+void GameOfLife::randomizeSymmetric(uint64_t seed, float density) {
+  grid.clear();
+  generation = 0;
+
+  uint64_t state = seed;
+  if (state == 0)
+    state = 1;
+
+  const int rows = grid.getRows();
+  const int cols = grid.getCols();
+  const int halfR = (rows + 1) / 2; // include center row
+  const int halfC = (cols + 1) / 2; // include center col
+
+  // Generate random cells in top-left quadrant, mirror to all four
+  for (int r = 0; r < halfR; ++r) {
+    for (int c = 0; c < halfC; ++c) {
+      uint64_t rng = xorshift64(state);
+      float normalized = static_cast<float>(rng >> 32) / 4294967296.0f;
+      if (normalized < density) {
+        int mirrorR = rows - 1 - r;
+        int mirrorC = cols - 1 - c;
+
+        grid.setCell(r, c, 1);
+        grid.setAge(r, c, 1);
+        grid.setCell(r, mirrorC, 1);
+        grid.setAge(r, mirrorC, 1);
+        grid.setCell(mirrorR, c, 1);
+        grid.setAge(mirrorR, c, 1);
+        grid.setCell(mirrorR, mirrorC, 1);
+        grid.setAge(mirrorR, mirrorC, 1);
+      }
+    }
+  }
+}
+
 void GameOfLife::clear() {
   grid.clear();
   generation = 0;

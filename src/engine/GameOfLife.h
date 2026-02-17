@@ -29,6 +29,7 @@ public:
   // --- CellularEngine interface ---
   void step() override;
   void randomize(uint64_t seed, float density) override;
+  void randomizeSymmetric(uint64_t seed, float density) override;
   void clear() override;
   const Grid &getGrid() const override { return grid; }
   Grid &getGridMutable() override { return grid; }
