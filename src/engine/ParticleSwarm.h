@@ -32,6 +32,15 @@ public:
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Particle Swarm"; }
 
+  // --- Engine-specific intensity ---
+  float getCellIntensity(int row, int col) const override {
+    float t = trail[row * Grid::kMaxCols + col];
+    return (t > 1.0f) ? 1.0f : ((t < 0.0f) ? 0.0f : t);
+  }
+  bool cellActivated(int row, int col) const override {
+    return getGrid().wasBorn(row, col);
+  }
+
   // --- Native data access for visualizer ---
   const Particle *getParticles() const { return particles; }
   const float *getTrailField() const { return trail; }

@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdint>
 
-
 /// Clock divider for tempo-synced engine stepping.
 /// Supports host transport sync and free-running internal clock.
 /// Uses integer sample counting (no floating-point drift).
@@ -105,6 +104,12 @@ public:
   double getStepsPerSecond() const {
     double quarterPerSec = currentBPM / 60.0;
     return quarterPerSec * getDivisionMultiplier();
+  }
+
+  /// Get step interval in seconds (inverse of steps per second).
+  double getStepIntervalSeconds() const {
+    double sps = getStepsPerSecond();
+    return (sps > 0.0) ? 1.0 / sps : 0.5;
   }
 
   double getBPM() const { return currentBPM; }

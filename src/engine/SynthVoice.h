@@ -34,6 +34,10 @@ public:
     filter.setCutoff(filterCutoffHz, sampleRate);
 
     envelope.noteOn();
+
+    // Reset onset delay (strum spread)
+    onsetDelaySamples = pendingOnsetDelay;
+    pendingOnsetDelay = 0;
   }
 
   /// Release the note.
@@ -43,6 +47,20 @@ public:
   StereoSample renderNextSample() {
     if (!active)
       return {0.0, 0.0};
+
+    // Onset delay (strum spread): count down silently
+    if (onsetDelaySamples > 0) {
+      --onsetDelaySamples;
+      return {0.0, 0.0};
+    }
+
+    // Gate timer: release note when countdown expires
+    if (gateRemainingSamples > 0) {
+      --gateRemainingSamples;
+      if (gateRemainingSamples == 0) {
+        envelope.noteOff();
+      }
+    }
 
     double envLevel = envelope.nextSample();
     if (!envelope.isActive()) {
@@ -122,6 +140,12 @@ public:
 
   void setPan(double p) { pan = p; } // -1.0 to 1.0
 
+  /// Set gate time in samples. 0 = hold until cell dies (no auto-release).
+  void setGateTime(int samples) { gateRemainingSamples = samples; }
+
+  /// Set onset delay in samples (for strum spread). Must be set before noteOn.
+  void setOnsetDelay(int samples) { pendingOnsetDelay = samples; }
+
   /// Reset voice to idle state.
   void reset() {
     active = false;
@@ -129,6 +153,9 @@ public:
     vel = 0.0;
     gridRow = -1;
     gridCol = -1;
+    gateRemainingSamples = 0;
+    onsetDelaySamples = 0;
+    pendingOnsetDelay = 0;
     osc.reset();
     sub.reset();
     filter.reset();
@@ -145,6 +172,9 @@ private:
   int gridRow = -1; // Grid cell this voice was triggered from
   int gridCol = -1;
   double filterCutoffHz = 8000.0;
+  int gateRemainingSamples = 0; // 0 = hold until cell dies
+  int onsetDelaySamples = 0;    // Countdown before audio output starts
+  int pendingOnsetDelay = 0;    // Set before noteOn, applied on noteOn
 
   PolyBLEPOscillator osc;
   AHDSREnvelope envelope;

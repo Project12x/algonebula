@@ -31,6 +31,15 @@ public:
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Brownian Field"; }
 
+  // --- Engine-specific intensity ---
+  float getCellIntensity(int row, int col) const override {
+    float e = energy[row * Grid::kMaxCols + col];
+    return (e > 1.0f) ? 1.0f : ((e < 0.0f) ? 0.0f : e);
+  }
+  bool cellActivated(int row, int col) const override {
+    return getGrid().wasBorn(row, col);
+  }
+
   // --- Native data access for visualizer ---
   const Walker *getWalkers() const { return walkers; }
   const float *getEnergyField() const { return energy; }

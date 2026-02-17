@@ -53,4 +53,17 @@ public:
 
   /// Get algorithm name for display.
   virtual const char *getName() const = 0;
+
+  /// Get continuous cell intensity [0.0, 1.0] for engine-specific triggering.
+  /// Binary engines return 0.0 or 1.0. Continuous engines return native float.
+  virtual float getCellIntensity(int row, int col) const {
+    return getGrid().getCell(row, col) ? 1.0f : 0.0f;
+  }
+
+  /// Check if a cell was "activated" this step (newly triggered).
+  /// Binary engines use wasBorn(). Continuous engines detect threshold
+  /// crossing.
+  virtual bool cellActivated(int row, int col) const {
+    return getGrid().wasBorn(row, col);
+  }
 };

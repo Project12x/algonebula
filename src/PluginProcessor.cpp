@@ -476,10 +476,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     float noteProb = apvts.getRawParameterValue("noteProbability")->load();
     float velHumanize = apvts.getRawParameterValue("velocityHumanize")->load();
     float melInertia = apvts.getRawParameterValue("melodicInertia")->load();
+    float gateTimeFrac = apvts.getRawParameterValue("gateTime")->load();
+    float strumSpread = apvts.getRawParameterValue("strumSpread")->load();
+
+    // Calculate step interval in samples for gate time
+    double stepIntervalSec = clock.getStepIntervalSeconds();
+    int stepIntervalSamples =
+        static_cast<int>(stepIntervalSec * currentSampleRate);
 
     for (int col = 0; col < grid.getCols() && voicesUsed < maxVoices; ++col) {
       for (int row = 0; row < grid.getRows(); ++row) {
-        if (grid.wasBorn(row, col)) {
+        if (engine->cellActivated(row, col)) {
           // --- Note probability: skip trigger randomly ---
           musicRng ^= musicRng << 13;
           musicRng ^= musicRng >> 7;
@@ -502,8 +509,13 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           lastTriggeredMidiNote = midiNote;
           float frequency = tuning.getFrequency(midiNote);
 
-          // --- Velocity humanization ---
+          // --- Velocity humanization + engine intensity ---
           float vel = lastMidiVelocity;
+
+          // Engine-specific intensity modulates velocity
+          float cellIntensity = engine->getCellIntensity(row, col);
+          vel *= cellIntensity;
+
           if (velHumanize > 0.0f) {
             musicRng ^= musicRng << 13;
             musicRng ^= musicRng >> 7;
@@ -554,6 +566,27 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             voices[voiceIdx].setPan(pan);
 
             voices[voiceIdx].setGridPosition(row, col);
+
+            // --- Gate time: set per-voice auto-release countdown ---
+            if (gateTimeFrac < 1.0f && stepIntervalSamples > 0) {
+              int gateSamples =
+                  static_cast<int>(gateTimeFrac * stepIntervalSamples);
+              if (gateSamples < 1)
+                gateSamples = 1;
+              voices[voiceIdx].setGateTime(gateSamples);
+            }
+
+            // --- Strum spread: onset delay per column position ---
+            if (strumSpread > 0.0f) {
+              // strumSpread is in ms (0-50). Spread across columns.
+              float colFrac = (grid.getCols() > 1) ? static_cast<float>(col) /
+                                                         (grid.getCols() - 1)
+                                                   : 0.0f;
+              int delaySamples = static_cast<int>(colFrac * strumSpread *
+                                                  0.001f * currentSampleRate);
+              voices[voiceIdx].setOnsetDelay(delaySamples);
+            }
+
             voices[voiceIdx].noteOn(midiNote, vel, frequency,
                                     currentSampleRate);
             ++voicesUsed;

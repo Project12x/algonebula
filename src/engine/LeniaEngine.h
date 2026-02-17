@@ -24,6 +24,15 @@ public:
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Lenia"; }
 
+  // --- Engine-specific intensity ---
+  float getCellIntensity(int row, int col) const override {
+    return stateField[row * Grid::kMaxCols + col];
+  }
+  bool cellActivated(int row, int col) const override {
+    // For continuous: use grid's wasBorn (threshold crossing projected)
+    return getGrid().wasBorn(row, col);
+  }
+
   // --- Native data access for visualizer ---
   const float *getStateField() const { return stateField; }
 
