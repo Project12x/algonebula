@@ -327,6 +327,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   bool isRunning = engineRunning.load(std::memory_order_relaxed);
   for (int i = 0; i < numSamples; ++i) {
     if (clock.tick() && isRunning) {
+      engine.getGridMutable().snapshotPrev();
       engine.step();
       stepTriggeredThisBlock = true;
     }
@@ -428,24 +429,36 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
-    // Release all active voices (simple: retrigger each step)
+    // --- Event-based voice management ---
+    const auto &grid = engine.getGrid();
+    // Release voices for cells that just died (no longer retrigger everything)
     for (int v = 0; v < kMaxVoices; ++v) {
-      if (voices[v].isActive())
-        voices[v].noteOff();
+      if (voices[v].isActive()) {
+        int vRow = voices[v].getGridRow();
+        int vCol = voices[v].getGridCol();
+        if (vRow >= 0 && vCol >= 0) {
+          // Cell died or out of grid bounds: release
+          if (grid.getCell(vRow, vCol) == 0) {
+            voices[v].noteOff();
+          }
+        }
+      }
     }
 
-    // Scan grid columns for active cells, assign voices
-    const auto &grid = engine.getGrid();
+    // Trigger new voices only for newly born cells
     int voicesUsed = 0;
+    for (int v = 0; v < kMaxVoices; ++v) {
+      if (voices[v].isActive())
+        ++voicesUsed;
+    }
 
     for (int col = 0; col < grid.getCols() && voicesUsed < maxVoices; ++col) {
-      // Find highest active cell in this column
       for (int row = 0; row < grid.getRows(); ++row) {
-        if (grid.getCell(row, col) != 0) {
+        if (grid.wasBorn(row, col)) {
           int midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
           float frequency = tuning.getFrequency(midiNote);
 
-          // Find a free voice (or steal quietest)
+          // Find a free voice
           int voiceIdx = -1;
           for (int v = 0; v < kMaxVoices; ++v) {
             if (!voices[v].isActive()) {
@@ -465,7 +478,6 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           }
 
           if (voiceIdx >= 0) {
-            // Per-column waveshape: base shape + column offset
             int shapeIdx = (waveshapeIdx + col) % waveCount;
             auto shape = static_cast<PolyBLEPOscillator::Shape>(shapeIdx);
             voices[voiceIdx].setWaveshape(shape);
@@ -480,12 +492,12 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             voices[voiceIdx].setSubOctave(
                 static_cast<SubOscillator::OctaveMode>(subOctIdx));
 
-            // Pan based on column position (-1.0 to 1.0)
             double pan = (grid.getCols() > 1)
                              ? (2.0 * col / (grid.getCols() - 1) - 1.0)
                              : 0.0;
             voices[voiceIdx].setPan(pan);
 
+            voices[voiceIdx].setGridPosition(row, col);
             voices[voiceIdx].noteOn(midiNote, lastMidiVelocity, frequency,
                                     currentSampleRate);
             ++voicesUsed;

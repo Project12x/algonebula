@@ -103,6 +103,28 @@ public:
     return c < 0 ? c + numCols : c;
   }
 
+  // --- Event Detection (birth/death tracking) ---
+  /// Call before engine step to snapshot current state.
+  void snapshotPrev() { std::memcpy(prevCells, cells, sizeof(prevCells)); }
+
+  /// Cell was dead last step, alive now.
+  bool wasBorn(int row, int col) const {
+    int idx = wrapRow(row) * kMaxCols + wrapCol(col);
+    return prevCells[idx] == 0 && cells[idx] > 0;
+  }
+
+  /// Cell was alive last step, dead now.
+  bool justDied(int row, int col) const {
+    int idx = wrapRow(row) * kMaxCols + wrapCol(col);
+    return prevCells[idx] > 0 && cells[idx] == 0;
+  }
+
+  /// Cell was alive last step and still alive.
+  bool persists(int row, int col) const {
+    int idx = wrapRow(row) * kMaxCols + wrapCol(col);
+    return prevCells[idx] > 0 && cells[idx] > 0;
+  }
+
 private:
   void clampDimensions() {
     if (numRows < 1)
@@ -120,5 +142,6 @@ private:
 
   // Fixed-size arrays at max capacity (no runtime allocation).
   uint8_t cells[kMaxCells] = {};
+  uint8_t prevCells[kMaxCells] = {}; // Previous generation for event detection
   uint16_t ages[kMaxCells] = {};
 };

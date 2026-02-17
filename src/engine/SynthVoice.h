@@ -83,6 +83,14 @@ public:
   /// Get the MIDI note this voice is playing.
   int getCurrentNote() const { return currentNote; }
 
+  /// Grid position this voice was triggered from (-1 = not grid-assigned).
+  int getGridRow() const { return gridRow; }
+  int getGridCol() const { return gridCol; }
+  void setGridPosition(int row, int col) {
+    gridRow = row;
+    gridCol = col;
+  }
+
   /// Get the envelope level (for voice stealing comparison).
   double getEnvelopeLevel() const { return envelope.getLevel(); }
 
@@ -119,6 +127,8 @@ public:
     active = false;
     currentNote = -1;
     vel = 0.0;
+    gridRow = -1;
+    gridCol = -1;
     osc.reset();
     sub.reset();
     filter.reset();
@@ -132,6 +142,8 @@ private:
   double vel = 0.0;
   double pan = 0.0; // -1.0 (L) to 1.0 (R)
   double sr = 44100.0;
+  int gridRow = -1; // Grid cell this voice was triggered from
+  int gridCol = -1;
   double filterCutoffHz = 8000.0;
 
   PolyBLEPOscillator osc;
