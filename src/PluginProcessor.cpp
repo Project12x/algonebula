@@ -422,8 +422,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
-    // --- Event-based voice management ---
+    // --- Density-driven dynamics ---
     const auto &grid = engine->getGrid();
+    const int totalCells = grid.getRows() * grid.getCols();
+    float density = (totalCells > 0)
+                        ? static_cast<float>(grid.countAlive()) / totalCells
+                        : 0.0f;
+    // Dense grids sound softer; sparse grids are louder
+    densityGain = juce::jmap(density, 0.0f, 1.0f, 1.0f, 0.35f);
+    // Dense grids open the filter; sparse grids keep it tighter
+    float densityCutoffMod = juce::jmap(density, 0.0f, 1.0f, 0.5f, 1.0f);
+    float modFilterCutoff = filterCutoff * densityCutoffMod;
     // Release voices for cells that just died (no longer retrigger everything)
     for (int v = 0; v < kMaxVoices; ++v) {
       if (voices[v].isActive()) {
@@ -476,7 +485,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             voices[voiceIdx].setWaveshape(shape);
             voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
                                                release, currentSampleRate);
-            voices[voiceIdx].setFilterCutoff(filterCutoff);
+            voices[voiceIdx].setFilterCutoff(modFilterCutoff);
             voices[voiceIdx].setFilterResonance(filterRes);
             voices[voiceIdx].setFilterMode(
                 static_cast<SVFilter::Mode>(filterModeIdx));
@@ -513,14 +522,14 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
 
-    // Gain staging: divide by max voices to prevent clipping
-    constexpr double voiceGain = 1.0 / kMaxVoices;
+    // Gain staging: density-modulated
+    const double dGain = static_cast<double>(densityGain) / kMaxVoices;
     if (buffer.getNumChannels() >= 2) {
-      buffer.setSample(0, sample, static_cast<float>(mixL * voiceGain));
-      buffer.setSample(1, sample, static_cast<float>(mixR * voiceGain));
+      buffer.setSample(0, sample, static_cast<float>(mixL * dGain));
+      buffer.setSample(1, sample, static_cast<float>(mixR * dGain));
     } else if (buffer.getNumChannels() >= 1) {
       buffer.setSample(0, sample,
-                       static_cast<float>((mixL + mixR) * 0.5 * voiceGain));
+                       static_cast<float>((mixL + mixR) * 0.5 * dGain));
     }
   }
 

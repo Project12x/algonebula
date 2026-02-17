@@ -21,7 +21,6 @@
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
 
-
 // Forward declarations
 class NebulaLookAndFeel;
 
@@ -132,7 +131,14 @@ private:
 
   // --- Algorithm tracking ---
   int lastAlgorithmIdx = 0;
+  float densityGain = 1.0f; // Updated each step from grid density
 
+public:
+  // UI accessors (call from message thread only)
+  const CellularEngine &getEngine() const { return *engine; }
+  float getDensityGain() const { return densityGain; }
+
+private:
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};
   double currentSampleRate = 44100.0;

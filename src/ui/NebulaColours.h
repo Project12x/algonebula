@@ -3,7 +3,6 @@
 #include <juce_graphics/juce_graphics.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
-
 /// Color token constants for the Nebula design system.
 /// All UI components read from these — never hardcode colors.
 namespace NebulaColours {
@@ -41,6 +40,17 @@ inline const juce::Colour danger{0xFFEF4444};  // Error/clip (red)
 // --- Knob ---
 inline const juce::Colour knob_track{0xFF2A2A45}; // Inactive arc
 inline const juce::Colour knob_fill{0xFF6366F1};  // Active arc
+
+// --- Engine-specific visualization ---
+// Brian's Brain
+inline const juce::Colour bb_on{0xFF22D3EE};    // cyan (active)
+inline const juce::Colour bb_dying{0xFFFBBF24}; // amber (dying)
+
+// Float field engine base colors
+inline const juce::Colour field_rd{0xFF3B82F6};    // blue (Reaction-Diffusion)
+inline const juce::Colour field_lenia{0xFF10B981}; // emerald (Lenia)
+inline const juce::Colour field_swarm{0xFFEC4899}; // pink (Particle Swarm)
+inline const juce::Colour field_brown{0xFFF59E0B}; // amber (Brownian Field)
 
 // --- Misc ---
 inline const juce::Colour divider{0xFF2A2A45}; // Separator lines

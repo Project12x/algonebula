@@ -35,6 +35,9 @@ public:
     g.setColour(NebulaColours::bg_deepest);
     g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
 
+    // Determine engine type for specialized rendering
+    EngineType eType = processor.getEngine().getType();
+
     for (int r = 0; r < rows; ++r) {
       for (int c = 0; c < cols; ++c) {
         float x = offsetX + c * cellSize + gap * 0.5f;
@@ -45,39 +48,83 @@ public:
         uint8_t cellState = grid.getCell(r, c);
 
         if (cellState > 0) {
-          // Age-based color: new(indigo) -> mid(purple) -> old(pink)
-          uint8_t age = static_cast<uint8_t>(grid.getAge(r, c));
-          float ageFrac = std::min(age / 20.0f, 1.0f);
-
           juce::Colour cellColour;
-          if (ageFrac < 0.5f)
-            cellColour = NebulaColours::cell_new.interpolatedWith(
-                NebulaColours::cell_mid, ageFrac * 2.0f);
-          else
-            cellColour = NebulaColours::cell_mid.interpolatedWith(
-                NebulaColours::cell_old, (ageFrac - 0.5f) * 2.0f);
+
+          switch (eType) {
+          case EngineType::BriansBrain: {
+            // 3-state: 1=On(cyan), 2=Dying(amber)
+            cellColour = (cellState == 1) ? NebulaColours::bb_on
+                                          : NebulaColours::bb_dying;
+            break;
+          }
+          case EngineType::CyclicCA: {
+            // Map state 0..N to HSL hue wheel
+            float hue = static_cast<float>(cellState) / 6.0f;
+            cellColour = juce::Colour::fromHSL(hue, 0.8f, 0.6f, 1.0f);
+            break;
+          }
+          case EngineType::ReactionDiffusion: {
+            // Intensity from age (mapped from B field via projection)
+            float intensity = std::min(grid.getAge(r, c) / 200.0f, 1.0f);
+            cellColour = NebulaColours::bg_surface.interpolatedWith(
+                NebulaColours::field_rd, intensity);
+            break;
+          }
+          case EngineType::Lenia: {
+            float intensity = std::min(grid.getAge(r, c) / 200.0f, 1.0f);
+            cellColour = NebulaColours::bg_surface.interpolatedWith(
+                NebulaColours::field_lenia, intensity);
+            break;
+          }
+          case EngineType::ParticleSwarm: {
+            float intensity = std::min(grid.getAge(r, c) / 200.0f, 1.0f);
+            cellColour = NebulaColours::bg_surface.interpolatedWith(
+                NebulaColours::field_swarm, intensity);
+            break;
+          }
+          case EngineType::BrownianField: {
+            float intensity = std::min(grid.getAge(r, c) / 200.0f, 1.0f);
+            cellColour = NebulaColours::bg_surface.interpolatedWith(
+                NebulaColours::field_brown, intensity);
+            break;
+          }
+          default: // GoL and variants
+          {
+            uint8_t age = static_cast<uint8_t>(grid.getAge(r, c));
+            float ageFrac = std::min(age / 20.0f, 1.0f);
+            if (ageFrac < 0.5f)
+              cellColour = NebulaColours::cell_new.interpolatedWith(
+                  NebulaColours::cell_mid, ageFrac * 2.0f);
+            else
+              cellColour = NebulaColours::cell_mid.interpolatedWith(
+                  NebulaColours::cell_old, (ageFrac - 0.5f) * 2.0f);
+            break;
+          }
+          }
 
           g.setColour(cellColour);
           g.fillRoundedRectangle(x, y, w, h, 2.0f);
 
-          // Subtle glow on recently born cells
+          // Glow on recently born cells
+          uint8_t age = static_cast<uint8_t>(grid.getAge(r, c));
           if (age <= 2) {
             g.setColour(cellColour.withAlpha(0.3f));
             g.fillRoundedRectangle(x - 1, y - 1, w + 2, h + 2, 3.0f);
           }
         } else {
-          // Dead cell — dark background
+          // Dead cell
           g.setColour(NebulaColours::bg_surface);
           g.fillRoundedRectangle(x, y, w, h, 2.0f);
         }
       }
     }
 
-    // Generation counter
+    // Generation counter + engine name
     g.setColour(NebulaColours::text_dim);
     g.setFont(11.0f);
-    g.drawText("Gen " + juce::String(processor.getGeneration()),
-               getLocalBounds().removeFromBottom(16),
+    juce::String info = processor.getEngine().getName();
+    info += " | Gen " + juce::String(processor.getGeneration());
+    g.drawText(info, getLocalBounds().removeFromBottom(16),
                juce::Justification::centredRight);
   }
 
