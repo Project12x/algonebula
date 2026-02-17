@@ -152,6 +152,11 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("refPitch", 1), "Reference Pitch",
       juce::NormalisableRange<float>(420.0f, 460.0f, 0.1f), 440.0f));
 
+  // --- Symmetry ---
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("symmetry", 1), "Symmetry",
+      juce::StringArray{"None", "4-Fold Mirror"}, 1)); // default to symmetric
+
   return layout;
 }
 
@@ -267,10 +272,41 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     buffer.clear(ch, 0, numSamples);
 
-  // Clock-driven engine stepping + voice triggering
+  // --- Handle transport requests from UI thread ---
+  // Seed change from user input
+  if (seedChanged.load(std::memory_order_relaxed)) {
+    reseedRng = currentSeed.load(std::memory_order_relaxed);
+    seedChanged.store(false, std::memory_order_relaxed);
+  }
+
+  // Clear grid request
+  if (clearRequested.exchange(false, std::memory_order_relaxed)) {
+    engine.clear();
+    stagnationCounter = 0;
+    lastAliveCount = 0;
+  }
+
+  // Reseed request (always symmetric)
+  if (reseedSymmetricRequested.exchange(false, std::memory_order_relaxed)) {
+    reseedRng ^= reseedRng << 13;
+    reseedRng ^= reseedRng >> 7;
+    reseedRng ^= reseedRng << 17;
+    currentSeed.store(reseedRng, std::memory_order_relaxed);
+    engine.randomizeSymmetric(reseedRng, 0.3f);
+    stagnationCounter = 0;
+    lastAliveCount = 0;
+  }
+
+  // --- Read symmetry mode ---
+  int symmetryIdx =
+      static_cast<int>(apvts.getRawParameterValue("symmetry")->load());
+  bool useSymmetry = (symmetryIdx == 1);
+
+  // Clock-driven engine stepping (only when running)
   stepTriggeredThisBlock = false;
+  bool isRunning = engineRunning.load(std::memory_order_relaxed);
   for (int i = 0; i < numSamples; ++i) {
-    if (clock.tick()) {
+    if (clock.tick() && isRunning) {
       engine.step();
       stepTriggeredThisBlock = true;
     }
@@ -287,8 +323,6 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
     if (stagnationCounter >= 8) {
-      // Inject ~5 cells with 4-fold mirror symmetry to preserve
-      // beautiful symmetric growth patterns
       auto &grid = engine.getGridMutable();
       const int rows = grid.getRows();
       const int cols = grid.getCols();
@@ -296,20 +330,28 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         reseedRng ^= reseedRng << 13;
         reseedRng ^= reseedRng >> 7;
         reseedRng ^= reseedRng << 17;
-        int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
-        int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
-        int mirrorR = rows - 1 - r;
-        int mirrorC = cols - 1 - c;
-        // Set all 4 mirrored positions
-        grid.setCell(r, c, 1);
-        grid.setAge(r, c, 1);
-        grid.setCell(r, mirrorC, 1);
-        grid.setAge(r, mirrorC, 1);
-        grid.setCell(mirrorR, c, 1);
-        grid.setAge(mirrorR, c, 1);
-        grid.setCell(mirrorR, mirrorC, 1);
-        grid.setAge(mirrorR, mirrorC, 1);
+
+        if (useSymmetry) {
+          int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
+          int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
+          int mirrorR = rows - 1 - r;
+          int mirrorC = cols - 1 - c;
+          grid.setCell(r, c, 1);
+          grid.setAge(r, c, 1);
+          grid.setCell(r, mirrorC, 1);
+          grid.setAge(r, mirrorC, 1);
+          grid.setCell(mirrorR, c, 1);
+          grid.setAge(mirrorR, c, 1);
+          grid.setCell(mirrorR, mirrorC, 1);
+          grid.setAge(mirrorR, mirrorC, 1);
+        } else {
+          int r = static_cast<int>(reseedRng % rows);
+          int c = static_cast<int>((reseedRng >> 16) % cols);
+          grid.setCell(r, c, 1);
+          grid.setAge(r, c, 1);
+        }
       }
+      currentSeed.store(reseedRng, std::memory_order_relaxed);
       stagnationCounter = 0;
     }
   }

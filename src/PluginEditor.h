@@ -108,5 +108,17 @@ private:
   // --- MIDI Keyboard ---
   juce::MidiKeyboardComponent midiKeyboard;
 
+  // --- Transport controls ---
+  juce::TextButton playPauseBtn{"Pause"};
+  juce::TextButton clearBtn{"Clear"};
+  juce::TextButton reseedBtn{"Reseed"};
+
+  // --- Seed display ---
+  juce::Label seedLabel;
+  juce::TextEditor seedInput;
+
+  // --- Symmetry ---
+  LabeledCombo symmetryCombo;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

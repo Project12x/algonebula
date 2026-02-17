@@ -64,6 +64,20 @@ public:
     return engineGeneration.load(std::memory_order_relaxed);
   }
 
+  // --- Transport controls (atomic, UI thread writes, audio thread reads) ---
+  std::atomic<bool> engineRunning{true};
+  std::atomic<bool> clearRequested{false};
+  std::atomic<bool> reseedSymmetricRequested{false};
+
+  // --- Seed access ---
+  uint64_t getSeed() const {
+    return currentSeed.load(std::memory_order_relaxed);
+  }
+  void setSeed(uint64_t seed) {
+    currentSeed.store(seed, std::memory_order_relaxed);
+    seedChanged.store(true, std::memory_order_relaxed);
+  }
+
   // --- MIDI keyboard (for virtual keyboard in editor) ---
   juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
 
@@ -104,6 +118,8 @@ private:
   int lastAliveCount = 0;
   int stagnationCounter = 0;
   uint64_t reseedRng = 12345;
+  std::atomic<uint64_t> currentSeed{12345};
+  std::atomic<bool> seedChanged{false};
 
   // --- Algorithm tracking ---
   int lastAlgorithmIdx = 0;

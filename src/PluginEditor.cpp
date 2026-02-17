@@ -88,6 +88,64 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   cpuMeterLabel.setText("CPU: 0.0%", juce::dontSendNotification);
   addAndMakeVisible(cpuMeterLabel);
 
+  // --- Transport controls ---
+  playPauseBtn.setColour(juce::TextButton::buttonColourId,
+                         NebulaColours::bg_surface);
+  playPauseBtn.setColour(juce::TextButton::textColourOffId,
+                         NebulaColours::accent1);
+  playPauseBtn.onClick = [this]() {
+    bool running = processor.engineRunning.load(std::memory_order_relaxed);
+    processor.engineRunning.store(!running, std::memory_order_relaxed);
+    playPauseBtn.setButtonText(running ? "Play" : "Pause");
+  };
+  addAndMakeVisible(playPauseBtn);
+
+  clearBtn.setColour(juce::TextButton::buttonColourId,
+                     NebulaColours::bg_surface);
+  clearBtn.setColour(juce::TextButton::textColourOffId,
+                     NebulaColours::text_normal);
+  clearBtn.onClick = [this]() {
+    processor.clearRequested.store(true, std::memory_order_relaxed);
+  };
+  addAndMakeVisible(clearBtn);
+
+  reseedBtn.setColour(juce::TextButton::buttonColourId,
+                      NebulaColours::bg_surface);
+  reseedBtn.setColour(juce::TextButton::textColourOffId,
+                      NebulaColours::accent2);
+  reseedBtn.onClick = [this]() {
+    processor.reseedSymmetricRequested.store(true, std::memory_order_relaxed);
+  };
+  addAndMakeVisible(reseedBtn);
+
+  // --- Seed display ---
+  seedLabel.setText("Seed:", juce::dontSendNotification);
+  seedLabel.setFont(nebulaLnF.getMonoFont(10.0f));
+  seedLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
+  seedLabel.setJustificationType(juce::Justification::centredRight);
+  addAndMakeVisible(seedLabel);
+
+  seedInput.setFont(nebulaLnF.getMonoFont(11.0f));
+  seedInput.setColour(juce::TextEditor::backgroundColourId,
+                      NebulaColours::bg_surface);
+  seedInput.setColour(juce::TextEditor::textColourId,
+                      NebulaColours::text_bright);
+  seedInput.setColour(juce::TextEditor::outlineColourId,
+                      NebulaColours::divider);
+  seedInput.setText(
+      juce::String::toHexString(static_cast<juce::int64>(processor.getSeed())),
+      juce::dontSendNotification);
+  seedInput.onReturnKey = [this]() {
+    auto text = seedInput.getText().trim();
+    auto val = text.getHexValue64();
+    if (val != 0)
+      processor.setSeed(static_cast<uint64_t>(val));
+  };
+  addAndMakeVisible(seedInput);
+
+  // --- Symmetry ---
+  setupCombo(symmetryCombo, "Symmetry", "symmetry");
+
   // --- MIDI Keyboard ---
   midiKeyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId,
                          NebulaColours::accent1.withAlpha(0.5f));
@@ -230,6 +288,30 @@ void AlgoNebulaEditor::resized() {
   layoutOneCombo(waveshapeCombo, a4);
 
   area.removeFromTop(6);
+
+  // --- Transport strip (between header and grid) ---
+  {
+    auto transportRow = area.removeFromTop(28).reduced(margin, 2);
+    int btnW = 60;
+    playPauseBtn.setBounds(transportRow.removeFromLeft(btnW));
+    transportRow.removeFromLeft(4);
+    clearBtn.setBounds(transportRow.removeFromLeft(btnW));
+    transportRow.removeFromLeft(4);
+    reseedBtn.setBounds(transportRow.removeFromLeft(btnW));
+    transportRow.removeFromLeft(12);
+
+    // Symmetry combo (no label in strip, compact)
+    symmetryCombo.label.setBounds(transportRow.removeFromLeft(60));
+    symmetryCombo.combo.setBounds(
+        transportRow.removeFromLeft(110).reduced(0, 1));
+    transportRow.removeFromLeft(12);
+
+    // Seed display
+    seedLabel.setBounds(transportRow.removeFromLeft(36));
+    transportRow.removeFromLeft(4);
+    seedInput.setBounds(transportRow.removeFromLeft(130).reduced(0, 1));
+  }
+  area.removeFromTop(2);
 
   // --- Middle area: grid (left) + synth controls (right) ---
   const int controlsW = static_cast<int>(getWidth() * 0.48f);
@@ -403,4 +485,16 @@ void AlgoNebulaEditor::timerCallback() {
     cpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::warning);
   else
     cpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
+
+  // Update seed display (only when user is not typing)
+  if (!seedInput.hasKeyboardFocus(false)) {
+    auto seedHex = juce::String::toHexString(
+        static_cast<juce::int64>(processor.getSeed()));
+    if (seedInput.getText() != seedHex)
+      seedInput.setText(seedHex, juce::dontSendNotification);
+  }
+
+  // Update play/pause button text to match state
+  bool running = processor.engineRunning.load(std::memory_order_relaxed);
+  playPauseBtn.setButtonText(running ? "Pause" : "Play");
 }
