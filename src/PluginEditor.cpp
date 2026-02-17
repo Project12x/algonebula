@@ -82,6 +82,9 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   // --- Mix ---
   setupKnob(noiseLevelKnob, "Noise", "noiseLevel");
   noiseLevelKnob.slider.setTooltip("White noise layer level");
+  setupKnob(waveshapeSpreadKnob, "WSpread", "waveshapeSpread");
+  waveshapeSpreadKnob.slider.setTooltip(
+      "Waveshape spread: 0 = all voices use selected wave, 1 = cycle shapes");
   setupKnob(subLevelKnob, "Sub", "subLevel");
   subLevelKnob.slider.setTooltip(
       "Sub-oscillator level (sine, tracks lowest voice)");
@@ -511,15 +514,22 @@ void AlgoNebulaEditor::resized() {
 
   ctrlArea.removeFromTop(8);
 
-  // Mix section (2 knobs + combo)
+  // Mix section (3 knobs + combo)
   ctrlArea.removeFromTop(14); // label space
   auto mixRow = ctrlArea.removeFromTop(knobSize + labelH + 4);
-  int mixItemW = mixRow.getWidth() / 3;
+  int mixItemW = mixRow.getWidth() / 4;
   {
     auto cell = mixRow.removeFromLeft(mixItemW);
     noiseLevelKnob.label.setBounds(cell.removeFromBottom(labelH));
     int sz = std::min(knobSize, cell.getWidth());
     noiseLevelKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = mixRow.removeFromLeft(mixItemW);
+    waveshapeSpreadKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    waveshapeSpreadKnob.slider.setBounds(
         cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
   }
   {

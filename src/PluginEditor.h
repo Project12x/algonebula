@@ -84,6 +84,7 @@ private:
 
   // --- Mix ---
   LabeledKnob noiseLevelKnob;
+  LabeledKnob waveshapeSpreadKnob;
   LabeledKnob subLevelKnob;
   LabeledCombo subOctaveCombo;
 

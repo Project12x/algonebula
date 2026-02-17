@@ -90,6 +90,10 @@ AlgoNebulaProcessor::createParameterLayout() {
                         "Fifth Stack", "Pad", "Bell"},
       0));
 
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("waveshapeSpread", 1), "Waveshape Spread",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
   // --- Ambient ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("droneSustain", 1), "Drone Sustain",
@@ -495,8 +499,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         static_cast<int>(apvts.getRawParameterValue("subOctave")->load());
     int maxVoices =
         static_cast<int>(apvts.getRawParameterValue("voiceCount")->load());
-    constexpr int waveCount =
-        static_cast<int>(PolyBLEPOscillator::Shape::Count);
+    float waveSpread = apvts.getRawParameterValue("waveshapeSpread")->load();
+    // Shapes available for cycling (exclude Bell FM = index 7)
+    constexpr int kCycleShapeCount = 7;
 
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
@@ -692,7 +697,19 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             }
 
             if (voiceIdx >= 0) {
-              int shapeIdx = (waveshapeIdx + col) % waveCount;
+              // Waveshape spread: 0 = all voices use selected shape,
+              // 1 = cycle through shapes (Bell FM excluded from cycling)
+              int shapeIdx = waveshapeIdx;
+              if (waveSpread > 0.0f) {
+                musicRng ^= musicRng << 13;
+                musicRng ^= musicRng >> 7;
+                musicRng ^= musicRng << 17;
+                float spreadRoll =
+                    static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+                if (spreadRoll < waveSpread) {
+                  shapeIdx = (waveshapeIdx + col) % kCycleShapeCount;
+                }
+              }
               auto shape = static_cast<PolyBLEPOscillator::Shape>(shapeIdx);
               voices[voiceIdx].setWaveshape(shape);
               voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
