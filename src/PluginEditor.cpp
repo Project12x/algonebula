@@ -2,14 +2,16 @@
 
 //==============================================================================
 AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
-    : AudioProcessorEditor(p), processor(p), gridComponent(p) {
+    : AudioProcessorEditor(p), processor(p), gridComponent(p),
+      midiKeyboard(p.getKeyboardState(),
+                   juce::MidiKeyboardComponent::horizontalKeyboard) {
   setLookAndFeel(&nebulaLnF);
 
   // --- Resizable ---
   setResizable(true, true);
-  setResizeLimits(1000, 700, 1920, 1280);
-  getConstrainer()->setFixedAspectRatio(10.0 / 7.0);
-  setSize(1000, 700);
+  setResizeLimits(1000, 780, 1920, 1400);
+  getConstrainer()->setFixedAspectRatio(0.0); // freeform resize
+  setSize(1000, 780);
 
   // --- Grid ---
   addAndMakeVisible(gridComponent);
@@ -21,6 +23,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   setupCombo(waveshapeCombo, "Wave", "waveshape");
 
   // --- Clock ---
+  setupKnob(bpmKnob, "BPM", "bpm");
   setupCombo(clockDivCombo, "Clock", "clockDiv");
   setupKnob(swingKnob, "Swing", "swing");
 
@@ -66,6 +69,14 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   cpuMeterLabel.setJustificationType(juce::Justification::centredRight);
   cpuMeterLabel.setText("CPU: 0.0%", juce::dontSendNotification);
   addAndMakeVisible(cpuMeterLabel);
+
+  // --- MIDI Keyboard ---
+  midiKeyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId,
+                         NebulaColours::accent1.withAlpha(0.5f));
+  midiKeyboard.setColour(
+      juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId,
+      NebulaColours::accent2.withAlpha(0.3f));
+  addAndMakeVisible(midiKeyboard);
 
   startTimerHz(10);
 }
@@ -127,7 +138,7 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
   // Version
   g.setFont(nebulaLnF.getMonoFont(10.0f));
   g.setColour(NebulaColours::text_dim);
-  g.drawText("v0.4.0", 16, 32, 80, 14, juce::Justification::centredLeft);
+  g.drawText("v0.4.5", 16, 32, 80, 14, juce::Justification::centredLeft);
 
   // Section labels
   auto drawSectionLabel = [&](const juce::String &text, int x, int y) {
@@ -295,8 +306,16 @@ void AlgoNebulaEditor::resized() {
   auto clockArea = bottomArea.removeFromLeft(sectionW);
   clockArea.removeFromTop(14); // label gap
   auto clockKnobRow = clockArea.removeFromTop(knobSize + labelH + 4);
+  int clockItemW = clockKnobRow.getWidth() / 3;
   {
-    auto cell = clockKnobRow.removeFromLeft(clockKnobRow.getWidth() / 2);
+    auto cell = clockKnobRow.removeFromLeft(clockItemW);
+    bpmKnob.label.setBounds(cell.removeFromBottom(labelH));
+    int sz = std::min(knobSize, cell.getWidth());
+    bpmKnob.slider.setBounds(
+        cell.withSizeKeepingCentre(sz, std::min(sz, cell.getHeight())));
+  }
+  {
+    auto cell = clockKnobRow.removeFromLeft(clockItemW);
     clockDivCombo.label.setBounds(cell.removeFromTop(labelH));
     cell.removeFromTop(2);
     clockDivCombo.combo.setBounds(cell.withHeight(comboH).reduced(2, 0));
@@ -345,6 +364,10 @@ void AlgoNebulaEditor::resized() {
   globalArea.removeFromTop(14);
   auto globalRow = globalArea.removeFromTop(knobSize + labelH + 4);
   layoutKnobs(globalRow, {&masterVolumeKnob, &voiceCountKnob});
+
+  // --- MIDI Keyboard at very bottom ---
+  auto keyboardArea = getLocalBounds().removeFromBottom(64).reduced(margin, 4);
+  midiKeyboard.setBounds(keyboardArea);
 }
 
 //==============================================================================

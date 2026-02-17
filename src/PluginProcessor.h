@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_dsp/juce_dsp.h>
 #include <memory>
 
@@ -63,6 +64,9 @@ public:
     return engineGeneration.load(std::memory_order_relaxed);
   }
 
+  // --- MIDI keyboard (for virtual keyboard in editor) ---
+  juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
+
 private:
   //--- Parameter layout ---
   static juce::AudioProcessorValueTreeState::ParameterLayout
@@ -91,6 +95,17 @@ private:
   static constexpr int kMaxVoices = 8;
   SynthVoice voices[kMaxVoices];
   bool stepTriggeredThisBlock = false;
+
+  // --- MIDI keyboard state ---
+  juce::MidiKeyboardState keyboardState;
+
+  // --- Auto-reseed stagnation tracking ---
+  int lastAliveCount = 0;
+  int stagnationCounter = 0;
+  uint64_t reseedRng = 12345;
+
+  // --- Algorithm tracking ---
+  int lastAlgorithmIdx = 0;
 
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};

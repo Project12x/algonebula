@@ -56,6 +56,7 @@ private:
   LabeledCombo waveshapeCombo;
 
   // --- Clock ---
+  LabeledKnob bpmKnob;
   LabeledCombo clockDivCombo;
   LabeledKnob swingKnob;
 
@@ -97,6 +98,9 @@ private:
 
   // --- Status ---
   juce::Label cpuMeterLabel;
+
+  // --- MIDI Keyboard ---
+  juce::MidiKeyboardComponent midiKeyboard;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

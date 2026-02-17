@@ -28,6 +28,10 @@ AlgoNebulaProcessor::createParameterLayout() {
       0));
 
   // --- Clock ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("bpm", 1), "BPM",
+      juce::NormalisableRange<float>(40.0f, 300.0f, 0.1f), 120.0f));
+
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID("clockDiv", 1), "Clock Division",
       juce::StringArray{"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"}, 2));
@@ -196,11 +200,64 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Drain UI cell edits into engine grid (bounded)
   cellEditQueue.drainInto(engine.getGridMutable());
 
+  // Process virtual MIDI keyboard input
+  keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
+                                      true);
+
+  // MIDI note-on triggers reseed (use note number as seed variety)
+  for (const auto metadata : midiMessages) {
+    const auto msg = metadata.getMessage();
+    if (msg.isNoteOn()) {
+      reseedRng ^= static_cast<uint64_t>(msg.getNoteNumber()) * 2654435761ULL;
+      reseedRng ^= reseedRng << 13;
+      reseedRng ^= reseedRng >> 7;
+      reseedRng ^= reseedRng << 17;
+      engine.randomize(reseedRng, 0.3f);
+      stagnationCounter = 0;
+    }
+  }
+
   // Read smoothed parameters
   masterVolume.setTargetValue(
       apvts.getRawParameterValue("masterVolume")->load());
 
   const int numSamples = buffer.getNumSamples();
+
+  // --- Read clock params and update clock ---
+  float bpm = apvts.getRawParameterValue("bpm")->load();
+  int clockDivIdx =
+      static_cast<int>(apvts.getRawParameterValue("clockDiv")->load());
+  float swing = apvts.getRawParameterValue("swing")->load();
+  clock.setBPM(static_cast<double>(bpm));
+  clock.setDivision(static_cast<ClockDivider::Division>(clockDivIdx));
+  clock.setSwing(static_cast<double>(swing));
+
+  // --- Read algorithm param and update rule preset ---
+  int algoIdx =
+      static_cast<int>(apvts.getRawParameterValue("algorithm")->load());
+  if (algoIdx != lastAlgorithmIdx) {
+    lastAlgorithmIdx = algoIdx;
+    // Map algorithm selector to GoL rule presets
+    GameOfLife::RulePreset preset;
+    switch (algoIdx) {
+    case 0:
+      preset = GameOfLife::RulePreset::Classic;
+      break;
+    case 1:
+      preset = GameOfLife::RulePreset::HighLife;
+      break;
+    case 2:
+      preset = GameOfLife::RulePreset::DayAndNight;
+      break;
+    case 3:
+      preset = GameOfLife::RulePreset::Seeds;
+      break;
+    default:
+      preset = GameOfLife::RulePreset::Ambient;
+      break;
+    }
+    engine.setRulePreset(preset);
+  }
 
   // Clear output buffer
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
@@ -212,6 +269,32 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     if (clock.tick()) {
       engine.step();
       stepTriggeredThisBlock = true;
+    }
+  }
+
+  // Auto-reseed: if alive count unchanged for 8 steps, inject cells
+  if (stepTriggeredThisBlock) {
+    int currentAlive = engine.getGrid().countAlive();
+    if (currentAlive == lastAliveCount) {
+      ++stagnationCounter;
+    } else {
+      stagnationCounter = 0;
+      lastAliveCount = currentAlive;
+    }
+
+    if (stagnationCounter >= 8) {
+      // Inject ~5 random cells
+      auto &grid = engine.getGridMutable();
+      for (int i = 0; i < 5; ++i) {
+        reseedRng ^= reseedRng << 13;
+        reseedRng ^= reseedRng >> 7;
+        reseedRng ^= reseedRng << 17;
+        int r = static_cast<int>(reseedRng % grid.getRows());
+        int c = static_cast<int>((reseedRng >> 16) % grid.getCols());
+        grid.setCell(r, c, 1);
+        grid.setAge(r, c, 1);
+      }
+      stagnationCounter = 0;
     }
   }
 
@@ -238,6 +321,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         static_cast<int>(apvts.getRawParameterValue("subOctave")->load());
     int maxVoices =
         static_cast<int>(apvts.getRawParameterValue("voiceCount")->load());
+    constexpr int waveCount =
+        static_cast<int>(PolyBLEPOscillator::Shape::Count);
 
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
@@ -278,7 +363,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           }
 
           if (voiceIdx >= 0) {
-            auto shape = static_cast<PolyBLEPOscillator::Shape>(waveshapeIdx);
+            // Per-column waveshape: base shape + column offset
+            int shapeIdx = (waveshapeIdx + col) % waveCount;
+            auto shape = static_cast<PolyBLEPOscillator::Shape>(shapeIdx);
             voices[voiceIdx].setWaveshape(shape);
             voices[voiceIdx].setEnvelopeParams(attack, hold, decay, sustain,
                                                release, currentSampleRate);
