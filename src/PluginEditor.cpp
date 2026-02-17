@@ -81,6 +81,12 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   setupKnob(masterVolumeKnob, "Volume", "masterVolume");
   setupKnob(voiceCountKnob, "Voices", "voiceCount");
 
+  // --- Anti-cacophony ---
+  setupKnob(consonanceKnob, "Consonance", "consonance");
+  setupKnob(maxTrigsKnob, "MaxTrigs", "maxTriggersPerStep");
+  setupKnob(restProbKnob, "Rest%", "restProbability");
+  setupKnob(pitchGravityKnob, "Gravity", "pitchGravity");
+
   // --- CPU Meter ---
   cpuMeterLabel.setFont(nebulaLnF.getMonoFont(11.0f));
   cpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
@@ -413,7 +419,7 @@ void AlgoNebulaEditor::resized() {
   auto bottomArea = area.reduced(margin, 0);
 
   // Clock section
-  int sectionW = bottomArea.getWidth() / 5;
+  int sectionW = bottomArea.getWidth() / 6;
   ctrlArea.removeFromTop(14); // for label
   auto clockArea = bottomArea.removeFromLeft(sectionW);
   clockArea.removeFromTop(14); // label gap
@@ -463,6 +469,13 @@ void AlgoNebulaEditor::resized() {
   ambArea.removeFromTop(14);
   auto ambRow = ambArea.removeFromTop(knobSize + labelH + 4);
   layoutKnobs(ambRow, {&droneSustainKnob, &noteProbKnob, &gateTimeKnob});
+
+  // Anti-cacophony section (4 knobs)
+  auto cacArea = bottomArea.removeFromLeft(sectionW);
+  cacArea.removeFromTop(14);
+  auto cacRow = cacArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(cacRow, {&consonanceKnob, &maxTrigsKnob, &restProbKnob,
+                       &pitchGravityKnob});
 
   // Humanize section (4 knobs)
   auto humArea = bottomArea.removeFromLeft(sectionW);

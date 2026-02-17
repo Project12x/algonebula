@@ -102,6 +102,12 @@ private:
   LabeledKnob masterVolumeKnob;
   LabeledKnob voiceCountKnob;
 
+  // --- Anti-cacophony ---
+  LabeledKnob consonanceKnob;
+  LabeledKnob maxTrigsKnob;
+  LabeledKnob restProbKnob;
+  LabeledKnob pitchGravityKnob;
+
   // --- Status ---
   juce::Label cpuMeterLabel;
 
