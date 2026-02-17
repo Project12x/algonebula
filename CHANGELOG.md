@@ -18,6 +18,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 6 new NebulaColours tokens for engine-specific visualization
 - `getEngine()` and `getDensityGain()` accessors on PluginProcessor
 - 7 new CA engine unit tests (82 total, all passing)
+- Adjustable grid resolution: Small (8x12), Medium (12x16), Large (16x24), XL (24x32) via APVTS parameter
 
 ### Changed
 
