@@ -8,28 +8,29 @@ AlgoNebulaProcessor::AlgoNebulaProcessor()
       apvts(*this, nullptr, "AlgoNebulaState", createParameterLayout()),
       engine(createEngine(0)) {}
 
-std::unique_ptr<CellularEngine> AlgoNebulaProcessor::createEngine(int algoIdx) {
+std::unique_ptr<CellularEngine>
+AlgoNebulaProcessor::createEngine(int algoIdx, int rows, int cols) {
   switch (algoIdx) {
   case 0:
-    return std::make_unique<GameOfLife>(12, 16,
+    return std::make_unique<GameOfLife>(rows, cols,
                                         GameOfLife::RulePreset::Classic);
   case 1:
-    return std::make_unique<GameOfLife>(12, 16,
+    return std::make_unique<GameOfLife>(rows, cols,
                                         GameOfLife::RulePreset::HighLife);
   case 2:
-    return std::make_unique<BriansBrain>(12, 16);
+    return std::make_unique<BriansBrain>(rows, cols);
   case 3:
-    return std::make_unique<CyclicCA>(12, 16);
+    return std::make_unique<CyclicCA>(rows, cols);
   case 4:
-    return std::make_unique<ReactionDiffusion>(12, 16);
+    return std::make_unique<ReactionDiffusion>(rows, cols);
   case 5:
-    return std::make_unique<ParticleSwarm>(12, 16);
+    return std::make_unique<ParticleSwarm>(rows, cols);
   case 6:
-    return std::make_unique<LeniaEngine>(12, 16);
+    return std::make_unique<LeniaEngine>(rows, cols);
   case 7:
-    return std::make_unique<BrownianField>(12, 16);
+    return std::make_unique<BrownianField>(rows, cols);
   default:
-    return std::make_unique<GameOfLife>(12, 16,
+    return std::make_unique<GameOfLife>(rows, cols,
                                         GameOfLife::RulePreset::Classic);
   }
 }
@@ -184,6 +185,13 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("symmetry", 1), "Symmetry",
       juce::StringArray{"None", "4-Fold Mirror"}, 1)); // default to symmetric
 
+  // --- Grid Resolution ---
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("gridSize", 1), "Grid Size",
+      juce::StringArray{"Small (8x12)", "Medium (12x16)", "Large (16x24)",
+                        "XL (24x32)"},
+      1)); // default to Medium
+
   return layout;
 }
 
@@ -268,13 +276,23 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   clock.setDivision(static_cast<ClockDivider::Division>(clockDivIdx));
   clock.setSwing(static_cast<double>(swing));
 
-  // --- Read algorithm param and switch engine type ---
+  // --- Read algorithm and grid size params, switch engine type ---
   int algoIdx =
       static_cast<int>(apvts.getRawParameterValue("algorithm")->load());
-  if (algoIdx != lastAlgorithmIdx) {
+  int gridSizeIdx =
+      static_cast<int>(apvts.getRawParameterValue("gridSize")->load());
+
+  // Grid size lookup: rows, cols
+  static constexpr int kGridSizes[][2] = {
+      {8, 12}, {12, 16}, {16, 24}, {24, 32}};
+  int gridRows = kGridSizes[gridSizeIdx][0];
+  int gridCols = kGridSizes[gridSizeIdx][1];
+
+  if (algoIdx != lastAlgorithmIdx || gridSizeIdx != lastGridSizeIdx) {
     lastAlgorithmIdx = algoIdx;
-    // Create new engine of the correct type
-    engine = createEngine(algoIdx);
+    lastGridSizeIdx = gridSizeIdx;
+    // Create new engine with updated dimensions
+    engine = createEngine(algoIdx, gridRows, gridCols);
     engine->randomize(reseedRng, 0.3f);
     // Release all voices when switching engine
     for (int v = 0; v < kMaxVoices; ++v)

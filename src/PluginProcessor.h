@@ -102,7 +102,8 @@ private:
 
   // --- Cellular Engine ---
   std::unique_ptr<CellularEngine> engine;
-  static std::unique_ptr<CellularEngine> createEngine(int algoIdx);
+  static std::unique_ptr<CellularEngine>
+  createEngine(int algoIdx, int rows = 12, int cols = 16);
   Grid gridSnapshot; // Double-buffer: audio writes, GL/UI reads
   CellEditQueue cellEditQueue;
   std::atomic<uint64_t> engineGeneration{0};
@@ -129,8 +130,8 @@ private:
   std::atomic<uint64_t> currentSeed{12345};
   std::atomic<bool> seedChanged{false};
 
-  // --- Algorithm tracking ---
   int lastAlgorithmIdx = 0;
+  int lastGridSizeIdx = 1;  // Default to Medium (12x16)
   float densityGain = 1.0f; // Updated each step from grid density
 
 public:
