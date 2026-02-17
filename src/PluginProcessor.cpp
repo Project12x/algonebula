@@ -204,10 +204,21 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
                                       true);
 
-  // MIDI note-on triggers reseed (use note number as seed variety)
+  // MIDI note-on: key tracking, velocity, and reseed
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
     if (msg.isNoteOn()) {
+      // Key tracking: set root key from MIDI note
+      int noteKey = msg.getNoteNumber() % 12;
+      if (auto *keyParam = apvts.getParameter("key")) {
+        keyParam->setValueNotifyingHost(
+            keyParam->convertTo0to1(static_cast<float>(noteKey)));
+      }
+
+      // Store velocity for voice triggering
+      lastMidiVelocity = msg.getFloatVelocity();
+
+      // Reseed grid with note-derived seed
       reseedRng ^= static_cast<uint64_t>(msg.getNoteNumber()) * 2654435761ULL;
       reseedRng ^= reseedRng << 13;
       reseedRng ^= reseedRng >> 7;
@@ -384,7 +395,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                              : 0.0;
             voices[voiceIdx].setPan(pan);
 
-            voices[voiceIdx].noteOn(midiNote, 0.8, frequency,
+            voices[voiceIdx].noteOn(midiNote, lastMidiVelocity, frequency,
                                     currentSampleRate);
             ++voicesUsed;
           }

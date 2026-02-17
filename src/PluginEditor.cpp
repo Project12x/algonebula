@@ -16,6 +16,24 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   // --- Grid ---
   addAndMakeVisible(gridComponent);
 
+  // --- Preset selector ---
+  factoryPresets = getFactoryPresets();
+  presetLabel.setText("Preset", juce::dontSendNotification);
+  presetLabel.setFont(nebulaLnF.getMonoFont(10.0f));
+  presetLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
+  presetLabel.setJustificationType(juce::Justification::centredRight);
+  addAndMakeVisible(presetLabel);
+
+  presetCombo.setTextWhenNothingSelected("-- Preset --");
+  for (int i = 0; i < static_cast<int>(factoryPresets.size()); ++i)
+    presetCombo.addItem(factoryPresets[static_cast<size_t>(i)].name, i + 1);
+  presetCombo.onChange = [this]() {
+    int idx = presetCombo.getSelectedId() - 1;
+    if (idx >= 0 && idx < static_cast<int>(factoryPresets.size()))
+      factoryPresets[static_cast<size_t>(idx)].apply(processor.getAPVTS());
+  };
+  addAndMakeVisible(presetCombo);
+
   // --- Top selectors ---
   setupCombo(algorithmCombo, "Algorithm", "algorithm");
   setupCombo(scaleCombo, "Scale", "scale");
@@ -181,8 +199,10 @@ void AlgoNebulaEditor::resized() {
 
   auto area = getLocalBounds();
 
-  // --- Header + CPU meter ---
+  // --- Header + CPU meter + Preset ---
   cpuMeterLabel.setBounds(getWidth() - 110, 12, 94, 14);
+  presetLabel.setBounds(getWidth() - 380, 12, 50, 14);
+  presetCombo.setBounds(getWidth() - 325, 10, 200, 24);
 
   // --- Top selector row ---
   auto selectorRow = area.removeFromTop(headerH).reduced(margin, 0);

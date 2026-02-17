@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "engine/FactoryPresets.h"
 #include "ui/GridComponent.h"
 #include "ui/NebulaLookAndFeel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -48,6 +49,11 @@ private:
 
   // --- Grid ---
   GridComponent gridComponent;
+
+  // --- Preset selector ---
+  juce::ComboBox presetCombo;
+  juce::Label presetLabel;
+  std::vector<FactoryPreset> factoryPresets;
 
   // --- Top selectors ---
   LabeledCombo algorithmCombo;

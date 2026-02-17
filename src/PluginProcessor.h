@@ -98,6 +98,7 @@ private:
 
   // --- MIDI keyboard state ---
   juce::MidiKeyboardState keyboardState;
+  float lastMidiVelocity = 0.8f;
 
   // --- Auto-reseed stagnation tracking ---
   int lastAliveCount = 0;
