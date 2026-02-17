@@ -221,10 +221,24 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   // Pre-allocate stereo mix buffer (no allocations on audio thread)
   stereoMixBuffer.setSize(2, samplesPerBlock, false, true, false);
 
-  // Initialize smoothed parameters
-  masterVolume.reset(sampleRate, 0.02); // 20ms smoothing
+  // Initialize smoothed parameters (20ms ramp time prevents zipper noise)
+  masterVolume.reset(sampleRate, 0.02);
   masterVolume.setCurrentAndTargetValue(
       apvts.getRawParameterValue("masterVolume")->load());
+  smoothFilterCutoff.reset(sampleRate, 0.02);
+  smoothFilterCutoff.setCurrentAndTargetValue(
+      apvts.getRawParameterValue("filterCutoff")->load());
+  smoothFilterRes.reset(sampleRate, 0.02);
+  smoothFilterRes.setCurrentAndTargetValue(
+      apvts.getRawParameterValue("filterRes")->load());
+  smoothNoiseLevel.reset(sampleRate, 0.02);
+  smoothNoiseLevel.setCurrentAndTargetValue(
+      apvts.getRawParameterValue("noiseLevel")->load());
+  smoothSubLevel.reset(sampleRate, 0.02);
+  smoothSubLevel.setCurrentAndTargetValue(
+      apvts.getRawParameterValue("subLevel")->load());
+  smoothDensityGain.reset(sampleRate, 0.05); // slower ramp for density
+  smoothDensityGain.setCurrentAndTargetValue(1.0f);
 
   // Initialize engine with default seed
   engine->randomize(42, 0.3f);
@@ -281,6 +295,13 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Read smoothed parameters
   masterVolume.setTargetValue(
       apvts.getRawParameterValue("masterVolume")->load());
+  smoothFilterCutoff.setTargetValue(
+      apvts.getRawParameterValue("filterCutoff")->load());
+  smoothFilterRes.setTargetValue(
+      apvts.getRawParameterValue("filterRes")->load());
+  smoothNoiseLevel.setTargetValue(
+      apvts.getRawParameterValue("noiseLevel")->load());
+  smoothSubLevel.setTargetValue(apvts.getRawParameterValue("subLevel")->load());
 
   const int numSamples = buffer.getNumSamples();
 
@@ -442,12 +463,12 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     float decay = apvts.getRawParameterValue("decay")->load();
     float sustain = apvts.getRawParameterValue("sustain")->load();
     float release = apvts.getRawParameterValue("release")->load();
-    float filterCutoff = apvts.getRawParameterValue("filterCutoff")->load();
-    float filterRes = apvts.getRawParameterValue("filterRes")->load();
+    float filterCutoff = smoothFilterCutoff.getCurrentValue();
+    float filterRes = smoothFilterRes.getCurrentValue();
     int filterModeIdx =
         static_cast<int>(apvts.getRawParameterValue("filterMode")->load());
-    float noiseLevel = apvts.getRawParameterValue("noiseLevel")->load();
-    float subLevel = apvts.getRawParameterValue("subLevel")->load();
+    float noiseLevel = smoothNoiseLevel.getCurrentValue();
+    float subLevel = smoothSubLevel.getCurrentValue();
     int subOctIdx =
         static_cast<int>(apvts.getRawParameterValue("subOctave")->load());
     int maxVoices =
@@ -465,6 +486,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                         : 0.0f;
     // Dense grids sound softer; sparse grids are louder
     densityGain = juce::jmap(density, 0.0f, 1.0f, 1.0f, 0.35f);
+    smoothDensityGain.setTargetValue(densityGain);
     // Dense grids open the filter; sparse grids keep it tighter
     float densityCutoffMod = juce::jmap(density, 0.0f, 1.0f, 0.5f, 1.0f);
     float modFilterCutoff = filterCutoff * densityCutoffMod;
@@ -696,8 +718,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
 
-    // Gain staging: density-modulated
-    const double dGain = static_cast<double>(densityGain) / kMaxVoices;
+    // Gain staging: density-modulated (smoothed to prevent clicks)
+    const double dGain =
+        static_cast<double>(smoothDensityGain.getNextValue()) / kMaxVoices;
     if (buffer.getNumChannels() >= 2) {
       buffer.setSample(0, sample, static_cast<float>(mixL * dGain));
       buffer.setSample(1, sample, static_cast<float>(mixR * dGain));

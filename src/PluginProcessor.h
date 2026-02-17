@@ -96,6 +96,14 @@ private:
 
   //--- Smoothed parameters (read by audio thread) ---
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterVolume;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+      smoothFilterCutoff;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothFilterRes;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+      smoothNoiseLevel;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothSubLevel;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+      smoothDensityGain;
 
   // --- Pre-allocated audio buffers ---
   juce::AudioBuffer<float> stereoMixBuffer;
