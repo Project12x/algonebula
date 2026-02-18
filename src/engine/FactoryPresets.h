@@ -56,7 +56,11 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"noteProbability", 0.5f},
         {"gateTime", 0.8f},
         {"tuning", 0.0f},
-        {"refPitch", 440.0f}}},
+        {"refPitch", 440.0f},
+        {"stereoWidth", 0.5f},
+        {"chorusMix", 0.0f},
+        {"delayMix", 0.0f},
+        {"reverbMix", 0.0f}}},
 
       // --- 1: Reversed Violin ---
       {"Reversed Violin",
@@ -89,7 +93,13 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"noteProbability", 0.6f},
         {"gateTime", 0.8f},
         {"tuning", 0.0f},
-        {"refPitch", 440.0f}}},
+        {"refPitch", 440.0f},
+        {"stereoWidth", 0.6f},
+        {"chorusRate", 0.8f},
+        {"chorusDepth", 0.5f},
+        {"chorusMix", 0.3f},
+        {"reverbDecay", 0.6f},
+        {"reverbMix", 0.2f}}},
 
       // --- 2: Crystalline Bells ---
       {"Crystalline Bells",
@@ -113,7 +123,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.0f},
         {"subOctave", 0.0f},
         {"masterVolume", 0.6f},
-        {"voiceCount", 6.0f},
+        {"voiceCount", 8.0f},
         {"melodicInertia", 0.5f},
         {"roundRobin", 0.3f},
         {"strumSpread", 5.0f},
@@ -122,7 +132,11 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"noteProbability", 0.5f},
         {"gateTime", 0.5f},
         {"tuning", 0.0f},
-        {"refPitch", 440.0f}}},
+        {"refPitch", 440.0f},
+        {"stereoWidth", 0.7f},
+        {"reverbDecay", 0.75f},
+        {"reverbDamping", 0.4f},
+        {"reverbMix", 0.35f}}},
 
       // --- 3: Dark Drone ---
       {"Dark Drone",
@@ -146,7 +160,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.8f},
         {"subOctave", 1.0f}, // -2 Oct
         {"masterVolume", 0.5f},
-        {"voiceCount", 3.0f},
+        {"voiceCount", 6.0f},
         {"melodicInertia", 0.9f},
         {"roundRobin", 0.1f},
         {"strumSpread", 0.0f},
@@ -155,7 +169,14 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"noteProbability", 0.3f},
         {"gateTime", 1.0f},
         {"tuning", 0.0f},
-        {"refPitch", 440.0f}}},
+        {"refPitch", 440.0f},
+        {"stereoWidth", 0.4f},
+        {"reverbDecay", 0.85f},
+        {"reverbDamping", 0.6f},
+        {"reverbMix", 0.5f},
+        {"delayTime", 0.5f},
+        {"delayFeedback", 0.3f},
+        {"delayMix", 0.2f}}},
 
       // --- 4: Pulsing Seeds (fast percussive, GoL) ---
       {"Pulsing Seeds",
@@ -212,7 +233,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.3f},
         {"subOctave", 0.0f},
         {"masterVolume", 0.6f},
-        {"voiceCount", 4.0f},
+        {"voiceCount", 6.0f},
         {"melodicInertia", 0.7f},
         {"roundRobin", 0.4f},
         {"strumSpread", 15.0f},
@@ -221,7 +242,13 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"noteProbability", 0.5f},
         {"gateTime", 0.7f},
         {"tuning", 1.0f}, // Just Intonation
-        {"refPitch", 440.0f}}},
+        {"refPitch", 440.0f},
+        {"stereoWidth", 0.8f},
+        {"chorusRate", 0.3f},
+        {"chorusDepth", 0.35f},
+        {"chorusMix", 0.25f},
+        {"reverbDecay", 0.7f},
+        {"reverbMix", 0.3f}}},
 
       // --- 6: Nebula Drift (blending pad) ---
       {"Nebula Drift",
@@ -245,7 +272,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.4f},
         {"subOctave", 0.0f}, // -1 Oct
         {"masterVolume", 0.55f},
-        {"voiceCount", 3.0f},
+        {"voiceCount", 5.0f},
         {"melodicInertia", 0.85f}, // Strong pitch memory
         {"roundRobin", 0.3f},
         {"strumSpread", 20.0f},
@@ -255,7 +282,11 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"gateTime", 1.0f},         // Full gate
         {"tuning", 0.0f},
         {"refPitch", 440.0f},
-        {"symmetry", 1.0f}}}, // 4-fold mirror
+        {"symmetry", 1.0f},
+        {"stereoWidth", 0.6f},
+        {"reverbDecay", 0.8f},
+        {"reverbDamping", 0.45f},
+        {"reverbMix", 0.45f}}}, // 4-fold mirror + reverb tail
 
       // --- 7: Tidal Lenia (slow continuous waves) ---
       {"Tidal Lenia",
@@ -279,7 +310,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.5f},
         {"subOctave", 0.0f}, // -1 Oct
         {"masterVolume", 0.55f},
-        {"voiceCount", 3.0f},
+        {"voiceCount", 5.0f},
         {"melodicInertia", 0.8f},
         {"roundRobin", 0.2f},
         {"strumSpread", 10.0f},
@@ -289,7 +320,13 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"gateTime", 0.9f},
         {"tuning", 0.0f},
         {"refPitch", 440.0f},
-        {"gridSize", 2.0f}}}, // Large grid for Lenia patterns
+        {"gridSize", 2.0f},
+        {"stereoWidth", 0.5f},
+        {"chorusRate", 0.2f},
+        {"chorusDepth", 0.3f},
+        {"chorusMix", 0.15f},
+        {"reverbDecay", 0.7f},
+        {"reverbMix", 0.4f}}}, // Large grid for Lenia patterns
 
       // --- 8: Chemical Garden (evolving R-D textures) ---
       {"Chemical Garden",
@@ -448,7 +485,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"subLevel", 0.6f},
         {"subOctave", 1.0f}, // -2 Oct
         {"masterVolume", 0.5f},
-        {"voiceCount", 2.0f},
+        {"voiceCount", 4.0f},
         {"melodicInertia", 0.95f},
         {"roundRobin", 0.1f},
         {"strumSpread", 0.0f},
@@ -458,6 +495,147 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"gateTime", 1.0f},
         {"tuning", 2.0f}, // Pythagorean
         {"refPitch", 440.0f},
-        {"gridSize", 2.0f}}}, // Large for diffuse patterns
+        {"gridSize", 2.0f},
+        {"stereoWidth", 0.3f},
+        {"reverbDecay", 0.9f},
+        {"reverbDamping", 0.5f},
+        {"reverbMix", 0.6f},
+        {"delayTime", 0.8f},
+        {"delayFeedback", 0.2f},
+        {"delayMix", 0.15f}}}, // Large for diffuse patterns
+
+      // === SHOWCASE PRESETS (leverage new DSP effects) ===
+
+      // --- 13: Cathedral Organ (massive reverb space) ---
+      {"Cathedral Organ",
+       "Musical",
+       {
+           {"algorithm", 0.0f}, // Classic GoL
+           {"scale", 1.0f},     // Major
+           {"key", 0.0f},       // C
+           {"waveshape", 6.0f}, // Pad
+           {"bpm", 50.0f},
+           {"clockDiv", 0.0f}, // 1/1 (slow, majestic)
+           {"swing", 50.0f},
+           {"attack", 3.5f},
+           {"hold", 2.0f},
+           {"decay", 5.0f},
+           {"sustain", 0.85f},
+           {"release", 12.0f},
+           {"filterCutoff", 2200.0f},
+           {"filterRes", 0.2f},
+           {"filterMode", 0.0f}, // LP
+           {"noiseLevel", 0.01f},
+           {"subLevel", 0.7f},
+           {"subOctave", 1.0f}, // -2 Oct (organ pedals)
+           {"masterVolume", 0.5f},
+           {"voiceCount", 8.0f},
+           {"melodicInertia", 0.9f},
+           {"roundRobin", 0.1f},
+           {"strumSpread", 0.0f},
+           {"velocityHumanize", 0.02f},
+           {"droneSustain", 0.85f},
+           {"noteProbability", 0.3f},
+           {"gateTime", 1.0f},
+           {"tuning", 1.0f}, // Just Intonation (organ tuning)
+           {"refPitch", 440.0f},
+           {"symmetry", 2.0f}, // 8-fold mirror
+           {"gridSize", 3.0f}, // XL grid
+           {"stereoWidth", 0.7f},
+           {"chorusMix", 0.0f},
+           {"delayMix", 0.0f},
+           {"reverbDecay", 0.95f},  // Massive tail
+           {"reverbDamping", 0.3f}, // Bright reflections
+           {"reverbMix", 0.65f}     // Dominant reverb
+       }},
+
+      // --- 14: Storm Front (rhythmic delay + chorus chaos) ---
+      {"Storm Front",
+       "Experimental",
+       {{"algorithm", 5.0f}, // Particle Swarm
+        {"scale", 0.0f},     // Chromatic
+        {"key", 2.0f},       // D
+        {"waveshape", 2.0f}, // Saw
+        {"bpm", 135.0f},
+        {"clockDiv", 3.0f}, // 1/8
+        {"swing", 65.0f},
+        {"attack", 0.01f},
+        {"hold", 0.0f},
+        {"decay", 0.4f},
+        {"sustain", 0.1f},
+        {"release", 1.5f},
+        {"filterCutoff", 7000.0f},
+        {"filterRes", 0.55f},
+        {"filterMode", 0.0f}, // LP
+        {"noiseLevel", 0.12f},
+        {"subLevel", 0.2f},
+        {"subOctave", 0.0f},
+        {"masterVolume", 0.45f},
+        {"voiceCount", 12.0f},
+        {"melodicInertia", 0.1f},
+        {"roundRobin", 0.9f},
+        {"strumSpread", 2.0f},
+        {"velocityHumanize", 0.25f},
+        {"droneSustain", 0.0f},
+        {"noteProbability", 0.55f},
+        {"gateTime", 0.35f},
+        {"tuning", 0.0f},
+        {"refPitch", 440.0f},
+        {"gridSize", 4.0f},    // XXL grid
+        {"stereoWidth", 1.0f}, // Full stereo scatter
+        {"chorusRate", 3.0f},
+        {"chorusDepth", 0.7f},
+        {"chorusMix", 0.4f},
+        {"delayTime", 0.22f}, // Synced-ish to tempo
+        {"delayFeedback", 0.65f},
+        {"delayMix", 0.45f},
+        {"reverbDecay", 0.5f},
+        {"reverbDamping", 0.7f},
+        {"reverbMix", 0.2f}}},
+
+      // --- 15: Deep Ocean (all effects, immersive) ---
+      {"Deep Ocean",
+       "Musical",
+       {{"algorithm", 6.0f}, // Lenia (organic waves)
+        {"scale", 9.0f},     // Pent. Major
+        {"key", 5.0f},       // F
+        {"waveshape", 0.0f}, // Sine (pure, oceanic)
+        {"bpm", 45.0f},      // Very slow
+        {"clockDiv", 0.0f},  // 1/1
+        {"swing", 50.0f},
+        {"attack", 5.0f},
+        {"hold", 2.0f},
+        {"decay", 8.0f},
+        {"sustain", 0.6f},
+        {"release", 15.0f},
+        {"filterCutoff", 1500.0f},
+        {"filterRes", 0.3f},
+        {"filterMode", 0.0f},  // LP
+        {"noiseLevel", 0.08f}, // Ocean spray
+        {"subLevel", 0.6f},
+        {"subOctave", 1.0f}, // -2 Oct (deep rumble)
+        {"masterVolume", 0.45f},
+        {"voiceCount", 10.0f},
+        {"melodicInertia", 0.95f},
+        {"roundRobin", 0.1f},
+        {"strumSpread", 30.0f},
+        {"velocityHumanize", 0.1f},
+        {"droneSustain", 0.85f},
+        {"noteProbability", 0.2f},
+        {"gateTime", 1.0f},
+        {"tuning", 1.0f}, // Just Intonation
+        {"refPitch", 440.0f},
+        {"gridSize", 7.0f}, // Huge grid (128x128)
+        {"symmetry", 1.0f}, // 4-fold mirror
+        {"stereoWidth", 0.8f},
+        {"chorusRate", 0.15f}, // Slow shimmer
+        {"chorusDepth", 0.4f},
+        {"chorusMix", 0.3f},
+        {"delayTime", 1.2f}, // Long echo
+        {"delayFeedback", 0.45f},
+        {"delayMix", 0.25f},
+        {"reverbDecay", 0.92f}, // Huge space
+        {"reverbDamping", 0.4f},
+        {"reverbMix", 0.55f}}},
   };
 }

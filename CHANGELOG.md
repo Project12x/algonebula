@@ -15,6 +15,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Effects chain in processBlock: chorus -> delay -> reverb (bypassed when mix=0)
 - Grid-position stereo panning scaled by configurable stereoWidth parameter
 - Effects initialized in prepareToPlay with proper sample rate
+- Non-modal effects popout window (FX button in transport strip)
+- 3 new showcase presets: Cathedral Organ, Storm Front, Deep Ocean (16 total)
+- 8 existing presets updated with effect params and higher voice counts
 
 ### Changed
 
