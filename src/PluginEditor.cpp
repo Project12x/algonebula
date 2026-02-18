@@ -253,6 +253,23 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   newSeedBtn.setTooltip("Generate a new random seed and reseed the grid");
   addAndMakeVisible(newSeedBtn);
 
+  // --- FX popout button ---
+  fxBtn.setColour(juce::TextButton::buttonColourId, NebulaColours::accent2_dim);
+  fxBtn.setColour(juce::TextButton::textColourOffId,
+                  NebulaColours::text_bright);
+  fxBtn.onClick = [this]() {
+    if (effectsWindow && effectsWindow->isVisible()) {
+      effectsWindow->setVisible(false);
+    } else {
+      if (!effectsWindow)
+        effectsWindow = std::make_unique<EffectsWindow>(processor, nebulaLnF);
+      effectsWindow->setVisible(true);
+      effectsWindow->toFront(true);
+    }
+  };
+  fxBtn.setTooltip("Open the effects panel (chorus, delay, reverb, stereo)");
+  addAndMakeVisible(fxBtn);
+
   // --- Factory pattern selector ---
   patternLabel.setText("Pattern", juce::dontSendNotification);
   patternLabel.setFont(nebulaLnF.getMonoFont(10.0f));
@@ -282,7 +299,10 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   startTimerHz(10);
 }
 
-AlgoNebulaEditor::~AlgoNebulaEditor() { setLookAndFeel(nullptr); }
+AlgoNebulaEditor::~AlgoNebulaEditor() {
+  effectsWindow.reset(); // destroy before clearing LookAndFeel
+  setLookAndFeel(nullptr);
+}
 
 //==============================================================================
 void AlgoNebulaEditor::setupKnob(LabeledKnob &knob,
@@ -339,7 +359,7 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
   // Version
   g.setFont(nebulaLnF.getMonoFont(10.0f));
   g.setColour(NebulaColours::text_dim);
-  g.drawText("v0.4.5", 16, 32, 80, 14, juce::Justification::centredLeft);
+  g.drawText("v0.7.0", 16, 32, 80, 14, juce::Justification::centredLeft);
 
   // Section labels
   auto drawSectionLabel = [&](const juce::String &text, int x, int y) {
@@ -428,6 +448,9 @@ void AlgoNebulaEditor::resized() {
     transportRow.removeFromLeft(4);
     newSeedBtn.setBounds(transportRow.removeFromLeft(70));
     transportRow.removeFromLeft(8);
+
+    // FX popout button
+    fxBtn.setBounds(transportRow.removeFromLeft(36).reduced(0, 1));
 
     // Pattern combo
     patternLabel.setBounds(transportRow.removeFromLeft(50));

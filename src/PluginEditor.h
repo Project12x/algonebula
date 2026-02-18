@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "engine/FactoryPatternLibrary.h"
 #include "engine/FactoryPresets.h"
+#include "ui/EffectsPanel.h"
 #include "ui/GridComponent.h"
 #include "ui/NebulaLookAndFeel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -145,6 +146,10 @@ private:
   // --- Factory Patterns ---
   juce::ComboBox patternCombo;
   juce::Label patternLabel;
+
+  // --- Effects popout ---
+  juce::TextButton fxBtn{"FX"};
+  std::unique_ptr<EffectsWindow> effectsWindow;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };
