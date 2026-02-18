@@ -23,6 +23,8 @@ public:
   Grid &getGridMutable() override { return grid; }
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Reaction-Diffusion"; }
+  int getDefaultTriggerBudget() const override { return 4; }
+  float getGainScale() const override { return 0.4f; }
 
   // --- Engine-specific intensity ---
   float getCellIntensity(int row, int col) const override {

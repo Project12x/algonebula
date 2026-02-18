@@ -24,6 +24,7 @@
 
 #include "dsp/Bitcrush.h"
 #include "dsp/EffectChain.h"
+#include "dsp/ModLFO.h"
 #include "dsp/PingPongDelay.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/SafetyProcessor.h"
@@ -185,6 +186,10 @@ private:
   // --- SafetyProcessor (DC filter + ultrasonic LP + brickwall, last in chain)
   // ---
   SafetyProcessor safetyProc;
+
+  // --- Modulation LFOs ---
+  ModLFO modLfo1;
+  ModLFO modLfo2;
 
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};

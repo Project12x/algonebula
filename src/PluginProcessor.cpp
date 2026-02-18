@@ -324,6 +324,54 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("pingPongMix", 1), "Ping Pong Mix",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
+  // --- Effect On/Off Toggles ---
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("chorusOn", 1), "Chorus On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("delayOn", 1), "Delay On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("reverbOn", 1), "Reverb On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("phaserOn", 1), "Phaser On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("flangerOn", 1), "Flanger On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("bitcrushOn", 1), "Bitcrush On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("tapeOn", 1), "Tape Sat On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("shimmerOn", 1), "Shimmer On", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("pingPongOn", 1), "Ping Pong On", false));
+
+  // --- Trigger Budget (0 = use engine default) ---
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("triggerBudget", 1), "Trigger Budget", 0, 32, 0));
+
+  // --- Modulation LFO 1 ---
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("lfo1Shape", 1), "LFO 1 Shape", 0, 4, 0));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("lfo1Rate", 1), "LFO 1 Rate",
+      juce::NormalisableRange<float>(0.01f, 20.0f, 0.01f, 0.4f), 1.0f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("lfo1Amount", 1), "LFO 1 Amount",
+      juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("lfo1Dest", 1), "LFO 1 Dest", 0, 17, 0));
+
+  // --- Modulation LFO 2 ---
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("lfo2Shape", 1), "LFO 2 Shape", 0, 4, 0));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("lfo2Rate", 1), "LFO 2 Rate",
+      juce::NormalisableRange<float>(0.01f, 20.0f, 0.01f, 0.4f), 1.0f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("lfo2Amount", 1), "LFO 2 Amount",
+      juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("lfo2Dest", 1), "LFO 2 Dest", 0, 17, 0));
+
   return layout;
 }
 
@@ -367,6 +415,8 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   shimmer.init(sr);
   pingPong.init(sr);
   safetyProc.init(sr);
+  modLfo1.init(sr);
+  modLfo2.init(sr);
 
   // Set up effect chain slots (order: modulation -> delay -> reverb ->
   // distortion)
@@ -692,9 +742,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // Anti-cacophony params
     float consonance = apvts.getRawParameterValue("consonance")->load();
-    int maxTrigsPerStep = static_cast<int>(
+    int maxTrigsParam = static_cast<int>(
         apvts.getRawParameterValue("maxTriggersPerStep")->load());
+    int triggerBudgetKnob =
+        static_cast<int>(apvts.getRawParameterValue("triggerBudget")->load());
+    // Trigger budget: knob override > 0 takes precedence, else engine default
+    int maxTrigsPerStep =
+        (triggerBudgetKnob > 0)
+            ? triggerBudgetKnob
+            : std::min(maxTrigsParam, engine->getDefaultTriggerBudget());
     float restProb = apvts.getRawParameterValue("restProbability")->load();
+    float engineGainScale = engine->getGainScale();
     float pitchGravity = apvts.getRawParameterValue("pitchGravity")->load();
 
     // Calculate step interval in samples for gate time
@@ -809,6 +867,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                   2.0f * velHumanize;
               vel = std::clamp(vel + velOffset, 0.1f, 1.0f);
             }
+
+            // Apply per-engine gain scale to prevent energy buildup
+            vel *= engineGainScale;
 
             // Find a free voice (round-robin: rotate start index)
             int voiceIdx = -1;
@@ -925,9 +986,18 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
 
-    // Gain staging: equal-power normalization for summed voices
-    const double dGain = static_cast<double>(smoothDensityGain.getNextValue()) /
-                         std::sqrt(static_cast<double>(kMaxVoices));
+    // Adaptive gain staging: normalize by active voice count
+    int activeVoiceCount = 0;
+    for (int v = 0; v < kMaxVoices; ++v) {
+      if (voices[v].isActive())
+        ++activeVoiceCount;
+    }
+    const double normFactor =
+        (activeVoiceCount > 1)
+            ? 1.0 / std::sqrt(static_cast<double>(activeVoiceCount))
+            : 1.0;
+    const double dGain =
+        static_cast<double>(smoothDensityGain.getNextValue()) * normFactor;
     if (buffer.getNumChannels() >= 2) {
       buffer.setSample(0, sample, static_cast<float>(mixL * dGain));
       buffer.setSample(1, sample, static_cast<float>(mixR * dGain));
@@ -937,23 +1007,76 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
-  // --- Read effect parameters ---
-  const float chorusMixP = apvts.getRawParameterValue("chorusMix")->load();
-  const float delayMixP = apvts.getRawParameterValue("delayMix")->load();
-  const float reverbMixP = apvts.getRawParameterValue("reverbMix")->load();
-  const float phaserMixP = apvts.getRawParameterValue("phaserMix")->load();
-  const float flangerMixP = apvts.getRawParameterValue("flangerMix")->load();
-  const float bitcrushMixP = apvts.getRawParameterValue("bitcrushMix")->load();
-  const float tapeMixP = apvts.getRawParameterValue("tapeMix")->load();
-  const float shimmerMixP = apvts.getRawParameterValue("shimmerMix")->load();
-  const float pingPongMixP = apvts.getRawParameterValue("pingPongMix")->load();
+  // --- Effect on/off toggles ---
+  chorus.setBypass(!apvts.getRawParameterValue("chorusOn")->load());
+  delay.setBypass(!apvts.getRawParameterValue("delayOn")->load());
+  reverb.setBypass(!apvts.getRawParameterValue("reverbOn")->load());
+  phaser.setBypass(!apvts.getRawParameterValue("phaserOn")->load());
+  flanger.setBypass(!apvts.getRawParameterValue("flangerOn")->load());
+  bitcrush.setBypass(!apvts.getRawParameterValue("bitcrushOn")->load());
+  tapeSat.setBypass(!apvts.getRawParameterValue("tapeOn")->load());
+  shimmer.setBypass(!apvts.getRawParameterValue("shimmerOn")->load());
+  pingPong.setBypass(!apvts.getRawParameterValue("pingPongOn")->load());
 
-  // Configure effects (parameter reads, not per-sample)
-  chorus.setRate(apvts.getRawParameterValue("chorusRate")->load());
+  // --- Modulation LFOs ---
+  modLfo1.setShape(
+      static_cast<int>(apvts.getRawParameterValue("lfo1Shape")->load()));
+  modLfo1.setRate(apvts.getRawParameterValue("lfo1Rate")->load());
+  float lfo1Amount = apvts.getRawParameterValue("lfo1Amount")->load();
+  int lfo1Dest =
+      static_cast<int>(apvts.getRawParameterValue("lfo1Dest")->load());
+  modLfo2.setShape(
+      static_cast<int>(apvts.getRawParameterValue("lfo2Shape")->load()));
+  modLfo2.setRate(apvts.getRawParameterValue("lfo2Rate")->load());
+  float lfo2Amount = apvts.getRawParameterValue("lfo2Amount")->load();
+  int lfo2Dest =
+      static_cast<int>(apvts.getRawParameterValue("lfo2Dest")->load());
+
+  // Tick LFOs once per block and compute modulation offsets
+  float lfo1Val = modLfo1.tickBlock(numSamples) * lfo1Amount;
+  float lfo2Val = modLfo2.tickBlock(numSamples) * lfo2Amount;
+
+  // Modulation destination map:
+  // 0=None, 1=chorusMix, 2=chorusRate, 3=delayMix, 4=delayTime,
+  // 5=reverbMix, 6=phaserRate, 7=flangerRate, 8=bitcrushBits,
+  // 9=tapeDrive, 10=shimmerMix, 11=pingPongTime, 12=filterCutoff,
+  // 13=filterRes, 14=stereoWidth, 15=noiseLevel, 16=attack, 17=decay
+  float modOffsets[18] = {};
+  if (lfo1Dest > 0 && lfo1Dest < 18)
+    modOffsets[lfo1Dest] += lfo1Val;
+  if (lfo2Dest > 0 && lfo2Dest < 18)
+    modOffsets[lfo2Dest] += lfo2Val;
+
+  // --- Read effect parameters (with modulation offsets) ---
+  auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
+  const float chorusMixP =
+      clamp01(apvts.getRawParameterValue("chorusMix")->load() + modOffsets[1]);
+  const float delayMixP =
+      clamp01(apvts.getRawParameterValue("delayMix")->load() + modOffsets[3]);
+  const float reverbMixP =
+      clamp01(apvts.getRawParameterValue("reverbMix")->load() + modOffsets[5]);
+  const float phaserMixP =
+      clamp01(apvts.getRawParameterValue("phaserMix")->load());
+  const float flangerMixP =
+      clamp01(apvts.getRawParameterValue("flangerMix")->load());
+  const float bitcrushMixP =
+      clamp01(apvts.getRawParameterValue("bitcrushMix")->load());
+  const float tapeMixP = clamp01(apvts.getRawParameterValue("tapeMix")->load());
+  const float shimmerMixP = clamp01(
+      apvts.getRawParameterValue("shimmerMix")->load() + modOffsets[10]);
+  const float pingPongMixP =
+      clamp01(apvts.getRawParameterValue("pingPongMix")->load());
+
+  // Configure effects (parameter reads with modulation, not per-sample)
+  chorus.setRate(
+      std::max(0.1f, apvts.getRawParameterValue("chorusRate")->load() +
+                         modOffsets[2] * 5.0f));
   chorus.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
   chorus.setMix(chorusMixP);
 
-  delay.setTime(apvts.getRawParameterValue("delayTime")->load());
+  delay.setTime(
+      std::max(0.01f, apvts.getRawParameterValue("delayTime")->load() +
+                          modOffsets[4] * 2.0f));
   delay.setFeedback(apvts.getRawParameterValue("delayFeedback")->load());
   delay.setMix(delayMixP);
 

@@ -3,6 +3,21 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.0] - 2026-02-18
+
+### Added
+
+- **Effect On/Off Toggles** - 9 APVTS-attached toggle buttons for quick A/B switching of each effect (chorus, delay, reverb, phaser, flanger, bitcrush, tape sat, shimmer, ping pong)
+- **Modulation Matrix** - 2 global LFOs (sine/tri/saw/square/S&H, 0.01-20Hz) with bipolar amount and 18 routeable destinations (effect mixes, rates, filter cutoff, envelope, etc.)
+- **Per-Engine Trigger Budget** - Each CA engine has a default maximum triggers per step (GoL/BB=32, CyclicCA=5, RD/Lenia=4, ParticleSwarm=4, Brownian=6); global knob overrides when >0
+- **Adaptive Gain Staging** - Voice sum normalization scales with active voice count (1/sqrt(N)) instead of fixed maximum; per-engine gain scaling reduces velocity for dense engines (CyclicCA=0.5, RD/Lenia=0.4, etc.)
+- **ModLFO.h** - Header-only modulation LFO with 5 waveform shapes, per-sample and per-block tick methods
+
+### Changed
+
+- Effect chain processing now uses toggle buttons instead of relying solely on mix=0 for bypass
+- Gain staging in processBlock now adapts to actual active voice count for better energy management
+
 ## [0.8.0] - 2026-02-18
 
 ### Added

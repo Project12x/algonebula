@@ -30,6 +30,8 @@ public:
   Grid &getGridMutable() override { return grid; }
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Brownian Field"; }
+  int getDefaultTriggerBudget() const override { return 6; }
+  float getGainScale() const override { return 0.5f; }
 
   // --- Engine-specific intensity ---
   float getCellIntensity(int row, int col) const override {

@@ -66,4 +66,12 @@ public:
   virtual bool cellActivated(int row, int col) const {
     return getGrid().wasBorn(row, col);
   }
+
+  /// Default max triggers per step. Dense engines override with lower values.
+  /// 0 means no limit (use kMaxVoices).
+  virtual int getDefaultTriggerBudget() const { return 32; }
+
+  /// Per-engine gain scaling. Dense engines override with < 1.0 to prevent
+  /// energy buildup when many voices are active simultaneously.
+  virtual float getGainScale() const { return 1.0f; }
 };

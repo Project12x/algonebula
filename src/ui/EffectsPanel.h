@@ -1,5 +1,5 @@
-// EffectsPanel.h - Effects popout window with APVTS-attached knobs
-// Hosts all DSP effect controls in a scrollable, sectioned layout.
+// EffectsPanel.h - Effects popout window with APVTS-attached knobs and toggles
+// Hosts all DSP effect controls + LFO modulation matrix + trigger budget.
 #pragma once
 
 #include "../PluginProcessor.h"
@@ -7,7 +7,7 @@
 #include "NebulaLookAndFeel.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// Self-contained effects panel with APVTS-attached knobs.
+// Self-contained effects panel with APVTS-attached knobs and toggles.
 // Hosted inside EffectsWindow (non-modal DocumentWindow).
 class EffectsPanel : public juce::Component {
 public:
@@ -18,50 +18,65 @@ public:
     // Stereo
     setupKnob(stereoWidthKnob, "Width", "stereoWidth");
 
-    // Chorus
+    // Effect sections with toggles
+    setupToggle(chorusToggle, "chorusOn");
     setupKnob(chorusRateKnob, "Rate", "chorusRate");
     setupKnob(chorusDepthKnob, "Depth", "chorusDepth");
     setupKnob(chorusMixKnob, "Mix", "chorusMix");
 
-    // Delay
+    setupToggle(delayToggle, "delayOn");
     setupKnob(delayTimeKnob, "Time", "delayTime");
     setupKnob(delayFeedbackKnob, "Fdbk", "delayFeedback");
     setupKnob(delayMixKnob, "Mix", "delayMix");
 
-    // Reverb
+    setupToggle(reverbToggle, "reverbOn");
     setupKnob(reverbDecayKnob, "Decay", "reverbDecay");
     setupKnob(reverbDampingKnob, "Damp", "reverbDamping");
     setupKnob(reverbMixKnob, "Mix", "reverbMix");
 
-    // Phaser
+    setupToggle(phaserToggle, "phaserOn");
     setupKnob(phaserRateKnob, "Rate", "phaserRate");
     setupKnob(phaserDepthKnob, "Depth", "phaserDepth");
     setupKnob(phaserMixKnob, "Mix", "phaserMix");
 
-    // Flanger
+    setupToggle(flangerToggle, "flangerOn");
     setupKnob(flangerRateKnob, "Rate", "flangerRate");
     setupKnob(flangerDepthKnob, "Depth", "flangerDepth");
     setupKnob(flangerMixKnob, "Mix", "flangerMix");
 
-    // Bitcrush
+    setupToggle(bitcrushToggle, "bitcrushOn");
     setupKnob(bitcrushBitsKnob, "Bits", "bitcrushBits");
     setupKnob(bitcrushRateKnob, "Rate", "bitcrushRate");
     setupKnob(bitcrushMixKnob, "Mix", "bitcrushMix");
 
-    // Tape Saturation
+    setupToggle(tapeToggle, "tapeOn");
     setupKnob(tapeDriveKnob, "Drive", "tapeDrive");
     setupKnob(tapeToneKnob, "Tone", "tapeTone");
     setupKnob(tapeMixKnob, "Mix", "tapeMix");
 
-    // Shimmer Reverb
+    setupToggle(shimmerToggle, "shimmerOn");
     setupKnob(shimmerDecayKnob, "Decay", "shimmerDecay");
     setupKnob(shimmerAmountKnob, "Shimmer", "shimmerAmount");
     setupKnob(shimmerMixKnob, "Mix", "shimmerMix");
 
-    // Ping Pong Delay
+    setupToggle(pingPongToggle, "pingPongOn");
     setupKnob(pingPongTimeKnob, "Time", "pingPongTime");
     setupKnob(pingPongFeedbackKnob, "Fdbk", "pingPongFeedback");
     setupKnob(pingPongMixKnob, "Mix", "pingPongMix");
+
+    // Trigger Budget
+    setupKnob(triggerBudgetKnob, "Budget", "triggerBudget");
+
+    // LFO Modulation
+    setupKnob(lfo1ShapeKnob, "Shape", "lfo1Shape");
+    setupKnob(lfo1RateKnob, "Rate", "lfo1Rate");
+    setupKnob(lfo1AmountKnob, "Amt", "lfo1Amount");
+    setupKnob(lfo1DestKnob, "Dest", "lfo1Dest");
+
+    setupKnob(lfo2ShapeKnob, "Shape", "lfo2Shape");
+    setupKnob(lfo2RateKnob, "Rate", "lfo2Rate");
+    setupKnob(lfo2AmountKnob, "Amt", "lfo2Amount");
+    setupKnob(lfo2DestKnob, "Dest", "lfo2Dest");
   }
 
   ~EffectsPanel() override { setLookAndFeel(nullptr); }
@@ -70,11 +85,14 @@ public:
     g.fillAll(NebulaColours::bg_deepest);
 
     const int m = 12;
+    const int toggleW = 16;
 
-    auto drawSection = [&](const juce::String &text, int y) {
+    auto drawSection = [&](const juce::String &text, int y,
+                           bool hasToggle = true) {
       g.setFont(nebulaLnF.getInterFont(11.0f));
       g.setColour(NebulaColours::accent1);
-      g.drawText(text, m, y, 200, 14, juce::Justification::centredLeft);
+      int textX = hasToggle ? m + toggleW + 4 : m;
+      g.drawText(text, textX, y, 200, 14, juce::Justification::centredLeft);
     };
 
     auto drawDivider = [&](int y) {
@@ -84,9 +102,8 @@ public:
                  1.0f);
     };
 
-    // Section headers and dividers
     int y = 6;
-    drawSection("STEREO", y);
+    drawSection("STEREO", y, false);
     y += kSectionStereo;
     drawDivider(y - 4);
     drawSection("CHORUS", y);
@@ -114,6 +131,15 @@ public:
     y += kSectionHeight;
     drawDivider(y - 4);
     drawSection("PING PONG", y);
+    y += kSectionHeight;
+    drawDivider(y - 4);
+    drawSection("TRIGGER BUDGET", y, false);
+    y += kSectionStereo;
+    drawDivider(y - 4);
+    drawSection("MOD LFO 1", y, false);
+    y += kSectionHeight;
+    drawDivider(y - 4);
+    drawSection("MOD LFO 2", y, false);
   }
 
   void resized() override {
@@ -128,59 +154,88 @@ public:
     layoutKnob(stereoWidthKnob, m, y, knobW, knobH, labelH);
     y += kSectionStereo;
 
-    // Chorus (3 knobs)
+    // Chorus (toggle + 3 knobs)
+    layoutToggle(chorusToggle, m, y - 16);
     layoutRow3(chorusRateKnob, chorusDepthKnob, chorusMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Delay (3 knobs)
+    // Delay
+    layoutToggle(delayToggle, m, y - 16);
     layoutRow3(delayTimeKnob, delayFeedbackKnob, delayMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Reverb (3 knobs)
+    // Reverb
+    layoutToggle(reverbToggle, m, y - 16);
     layoutRow3(reverbDecayKnob, reverbDampingKnob, reverbMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Phaser (3 knobs)
+    // Phaser
+    layoutToggle(phaserToggle, m, y - 16);
     layoutRow3(phaserRateKnob, phaserDepthKnob, phaserMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Flanger (3 knobs)
+    // Flanger
+    layoutToggle(flangerToggle, m, y - 16);
     layoutRow3(flangerRateKnob, flangerDepthKnob, flangerMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Bitcrush (3 knobs)
+    // Bitcrush
+    layoutToggle(bitcrushToggle, m, y - 16);
     layoutRow3(bitcrushBitsKnob, bitcrushRateKnob, bitcrushMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Tape Saturation (3 knobs)
+    // Tape Saturation
+    layoutToggle(tapeToggle, m, y - 16);
     layoutRow3(tapeDriveKnob, tapeToneKnob, tapeMixKnob, m, y, knobW, knobH,
                labelH);
     y += kSectionHeight;
 
-    // Shimmer Reverb (3 knobs)
+    // Shimmer Reverb
+    layoutToggle(shimmerToggle, m, y - 16);
     layoutRow3(shimmerDecayKnob, shimmerAmountKnob, shimmerMixKnob, m, y, knobW,
                knobH, labelH);
     y += kSectionHeight;
 
-    // Ping Pong Delay (3 knobs)
+    // Ping Pong Delay
+    layoutToggle(pingPongToggle, m, y - 16);
     layoutRow3(pingPongTimeKnob, pingPongFeedbackKnob, pingPongMixKnob, m, y,
                knobW, knobH, labelH);
+    y += kSectionHeight;
+
+    // Trigger Budget (1 knob)
+    layoutKnob(triggerBudgetKnob, m, y, knobW, knobH, labelH);
+    y += kSectionStereo;
+
+    // LFO 1 (4 knobs)
+    layoutRow4(lfo1ShapeKnob, lfo1RateKnob, lfo1AmountKnob, lfo1DestKnob, m, y,
+               knobW - 6, knobH, labelH);
+    y += kSectionHeight;
+
+    // LFO 2 (4 knobs)
+    layoutRow4(lfo2ShapeKnob, lfo2RateKnob, lfo2AmountKnob, lfo2DestKnob, m, y,
+               knobW - 6, knobH, labelH);
   }
 
 private:
-  static constexpr int kSectionStereo = 74; // Shorter section for 1 knob
-  static constexpr int kSectionHeight = 80; // Standard section height
+  static constexpr int kSectionStereo = 74;
+  static constexpr int kSectionHeight = 80;
 
   struct Knob {
     juce::Slider slider;
     juce::Label label;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
+        attach;
+  };
+
+  struct Toggle {
+    juce::ToggleButton button;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
         attach;
   };
 
@@ -201,9 +256,23 @@ private:
             processor.getAPVTS(), paramID, k.slider);
   }
 
+  void setupToggle(Toggle &t, const juce::String &paramID) {
+    t.button.setButtonText("");
+    t.button.setColour(juce::ToggleButton::tickColourId,
+                       NebulaColours::accent1);
+    addAndMakeVisible(t.button);
+    t.attach =
+        std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            processor.getAPVTS(), paramID, t.button);
+  }
+
   void layoutKnob(Knob &k, int x, int y, int w, int h, int lh) {
     k.slider.setBounds(x, y, w, h);
     k.label.setBounds(x, y + h + 2, w, lh);
+  }
+
+  void layoutToggle(Toggle &t, int x, int y) {
+    t.button.setBounds(x, y, 16, 16);
   }
 
   void layoutRow3(Knob &k1, Knob &k2, Knob &k3, int m, int y, int knobW,
@@ -213,62 +282,62 @@ private:
     layoutKnob(k3, m + (knobW + 6) * 2, y, knobW, knobH, labelH);
   }
 
+  void layoutRow4(Knob &k1, Knob &k2, Knob &k3, Knob &k4, int m, int y,
+                  int knobW, int knobH, int labelH) {
+    layoutKnob(k1, m, y, knobW, knobH, labelH);
+    layoutKnob(k2, m + knobW + 4, y, knobW, knobH, labelH);
+    layoutKnob(k3, m + (knobW + 4) * 2, y, knobW, knobH, labelH);
+    layoutKnob(k4, m + (knobW + 4) * 3, y, knobW, knobH, labelH);
+  }
+
   AlgoNebulaProcessor &processor;
   NebulaLookAndFeel &nebulaLnF;
 
   // Stereo
   Knob stereoWidthKnob;
 
+  // Effect toggles
+  Toggle chorusToggle, delayToggle, reverbToggle, phaserToggle, flangerToggle,
+      bitcrushToggle, tapeToggle, shimmerToggle, pingPongToggle;
+
   // Chorus
-  Knob chorusRateKnob;
-  Knob chorusDepthKnob;
-  Knob chorusMixKnob;
+  Knob chorusRateKnob, chorusDepthKnob, chorusMixKnob;
 
   // Delay
-  Knob delayTimeKnob;
-  Knob delayFeedbackKnob;
-  Knob delayMixKnob;
+  Knob delayTimeKnob, delayFeedbackKnob, delayMixKnob;
 
   // Reverb
-  Knob reverbDecayKnob;
-  Knob reverbDampingKnob;
-  Knob reverbMixKnob;
+  Knob reverbDecayKnob, reverbDampingKnob, reverbMixKnob;
 
   // Phaser
-  Knob phaserRateKnob;
-  Knob phaserDepthKnob;
-  Knob phaserMixKnob;
+  Knob phaserRateKnob, phaserDepthKnob, phaserMixKnob;
 
   // Flanger
-  Knob flangerRateKnob;
-  Knob flangerDepthKnob;
-  Knob flangerMixKnob;
+  Knob flangerRateKnob, flangerDepthKnob, flangerMixKnob;
 
   // Bitcrush
-  Knob bitcrushBitsKnob;
-  Knob bitcrushRateKnob;
-  Knob bitcrushMixKnob;
+  Knob bitcrushBitsKnob, bitcrushRateKnob, bitcrushMixKnob;
 
   // Tape Saturation
-  Knob tapeDriveKnob;
-  Knob tapeToneKnob;
-  Knob tapeMixKnob;
+  Knob tapeDriveKnob, tapeToneKnob, tapeMixKnob;
 
   // Shimmer Reverb
-  Knob shimmerDecayKnob;
-  Knob shimmerAmountKnob;
-  Knob shimmerMixKnob;
+  Knob shimmerDecayKnob, shimmerAmountKnob, shimmerMixKnob;
 
   // Ping Pong Delay
-  Knob pingPongTimeKnob;
-  Knob pingPongFeedbackKnob;
-  Knob pingPongMixKnob;
+  Knob pingPongTimeKnob, pingPongFeedbackKnob, pingPongMixKnob;
+
+  // Trigger Budget
+  Knob triggerBudgetKnob;
+
+  // LFO Modulation
+  Knob lfo1ShapeKnob, lfo1RateKnob, lfo1AmountKnob, lfo1DestKnob;
+  Knob lfo2ShapeKnob, lfo2RateKnob, lfo2AmountKnob, lfo2DestKnob;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EffectsPanel)
 };
 
 // Non-modal floating window that hosts the EffectsPanel.
-// Does NOT prevent interaction with the main editor.
 class EffectsWindow : public juce::DocumentWindow {
 public:
   EffectsWindow(AlgoNebulaProcessor &proc, NebulaLookAndFeel &lnf)
@@ -277,8 +346,8 @@ public:
     setUsingNativeTitleBar(false);
     setContentOwned(new EffectsPanel(proc, lnf), false);
     setResizable(false, false);
-    // Taller window to accommodate all 10 effect sections
-    centreWithSize(210, 860);
+    // Taller window: 10 effects + trigger budget + 2 LFOs
+    centreWithSize(230, 1120);
     setVisible(true);
     setAlwaysOnTop(false);
   }

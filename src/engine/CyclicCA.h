@@ -23,6 +23,8 @@ public:
   Grid &getGridMutable() override { return grid; }
   uint64_t getGeneration() const override { return generation; }
   const char *getName() const override { return "Cyclic CA"; }
+  int getDefaultTriggerBudget() const override { return 5; }
+  float getGainScale() const override { return 0.5f; }
 
 private:
   Grid grid;
