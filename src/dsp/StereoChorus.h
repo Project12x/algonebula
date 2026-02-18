@@ -82,7 +82,7 @@ private:
       return 0.0f;
     if (std::fabs(x) < 1.0e-15f)
       return 0.0f;
-    return std::max(-4.0f, std::min(4.0f, x));
+    return std::max(-1.5f, std::min(1.5f, x));
   }
 
   float triangleLfo(float phase) const {

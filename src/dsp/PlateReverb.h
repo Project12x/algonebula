@@ -55,7 +55,7 @@ public:
     setPreDelay(0.0f);
   }
 
-  void setDecay(float d) { decay_ = std::max(0.0f, std::min(0.99f, d)); }
+  void setDecay(float d) { decay_ = std::max(0.0f, std::min(0.85f, d)); }
   void setDamping(float d) { damping_ = std::max(0.0f, std::min(1.0f, d)); }
   void setMix(float m) { mix_ = std::max(0.0f, std::min(1.0f, m)); }
   void setPreDelay(float seconds) {
@@ -161,7 +161,7 @@ private:
       return 0.0f;
     if (std::fabs(x) < 1.0e-15f)
       return 0.0f;
-    return std::max(-4.0f, std::min(4.0f, x));
+    return std::max(-1.5f, std::min(1.5f, x));
   }
 
   void resetPositions() {

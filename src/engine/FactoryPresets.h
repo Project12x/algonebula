@@ -497,7 +497,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"refPitch", 440.0f},
         {"gridSize", 2.0f},
         {"stereoWidth", 0.3f},
-        {"reverbDecay", 0.9f},
+        {"reverbDecay", 0.85f},
         {"reverbDamping", 0.5f},
         {"reverbMix", 0.6f},
         {"delayTime", 0.8f},
@@ -544,7 +544,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
            {"stereoWidth", 0.7f},
            {"chorusMix", 0.0f},
            {"delayMix", 0.0f},
-           {"reverbDecay", 0.95f},  // Massive tail
+           {"reverbDecay", 0.85f},  // Massive tail
            {"reverbDamping", 0.3f}, // Bright reflections
            {"reverbMix", 0.65f}     // Dominant reverb
        }},
@@ -634,7 +634,7 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"delayTime", 1.2f}, // Long echo
         {"delayFeedback", 0.45f},
         {"delayMix", 0.25f},
-        {"reverbDecay", 0.92f}, // Huge space
+        {"reverbDecay", 0.85f}, // Huge space
         {"reverbDamping", 0.4f},
         {"reverbMix", 0.55f}}},
   };

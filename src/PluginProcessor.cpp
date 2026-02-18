@@ -250,7 +250,7 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Reverb ---
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("reverbDecay", 1), "Reverb Decay",
-      juce::NormalisableRange<float>(0.0f, 0.99f, 0.01f), 0.7f));
+      juce::NormalisableRange<float>(0.0f, 0.85f, 0.01f), 0.7f));
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("reverbDamping", 1), "Reverb Damping",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
@@ -856,49 +856,70 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   const float reverbMixP = apvts.getRawParameterValue("reverbMix")->load();
 
   // Configure effects (parameter reads, not per-sample)
+  // Effects run at 100% wet internally; dry/wet mixing is done externally
   chorus.setRate(apvts.getRawParameterValue("chorusRate")->load());
   chorus.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
-  chorus.setMix(chorusMixP);
+  chorus.setMix(1.0f); // Always wet-only; we blend externally
   delay.setTime(apvts.getRawParameterValue("delayTime")->load());
   delay.setFeedback(apvts.getRawParameterValue("delayFeedback")->load());
-  delay.setMix(delayMixP);
+  delay.setMix(1.0f); // Always wet-only
   reverb.setDecay(apvts.getRawParameterValue("reverbDecay")->load());
   reverb.setDamping(apvts.getRawParameterValue("reverbDamping")->load());
-  reverb.setMix(reverbMixP);
+  reverb.setMix(1.0f); // Always wet-only
 
-  // --- Apply effects chain per-sample (chorus -> delay -> reverb) ---
+  // --- Apply effects chain (parallel send/return architecture) ---
+  // Each effect receives the soft-clipped dry signal independently.
+  // Wet returns are scaled by their mix parameter and summed.
   if (buffer.getNumChannels() >= 2 &&
       (chorusMixP > 0.0f || delayMixP > 0.0f || reverbMixP > 0.0f)) {
-    for (int sample = 0; sample < numSamples; ++sample) {
-      float L = buffer.getSample(0, sample);
-      float R = buffer.getSample(1, sample);
 
-      // Chorus
+    // Soft-clip function to tame hot signals before they enter effects
+    auto softClip = [](float x) -> float {
+      if (x > 1.5f)
+        return 1.0f;
+      if (x < -1.5f)
+        return -1.0f;
+      return x - (x * x * x) / 6.75f;
+    };
+
+    for (int sample = 0; sample < numSamples; ++sample) {
+      float dryL = buffer.getSample(0, sample);
+      float dryR = buffer.getSample(1, sample);
+
+      // Soft-clip before feeding effects
+      float clippedL = softClip(dryL);
+      float clippedR = softClip(dryR);
+
+      float wetSumL = 0.0f;
+      float wetSumR = 0.0f;
+
+      // Chorus (parallel send)
       if (chorusMixP > 0.0f) {
         float cL, cR;
-        chorus.process(L, R, cL, cR);
-        L = cL;
-        R = cR;
+        chorus.process(clippedL, clippedR, cL, cR);
+        wetSumL += (cL - clippedL) * chorusMixP; // wet-only * user mix
+        wetSumR += (cR - clippedR) * chorusMixP;
       }
 
-      // Delay
+      // Delay (parallel send)
       if (delayMixP > 0.0f) {
         float dL, dR;
-        delay.process(L, R, dL, dR);
-        L = dL;
-        R = dR;
+        delay.process(clippedL, clippedR, dL, dR);
+        wetSumL += (dL - clippedL) * delayMixP;
+        wetSumR += (dR - clippedR) * delayMixP;
       }
 
-      // Reverb
+      // Reverb (parallel send)
       if (reverbMixP > 0.0f) {
         float rL, rR;
-        reverb.process(L, R, rL, rR);
-        L = rL;
-        R = rR;
+        reverb.process(clippedL, clippedR, rL, rR);
+        wetSumL += (rL - clippedL) * reverbMixP;
+        wetSumR += (rR - clippedR) * reverbMixP;
       }
 
-      buffer.setSample(0, sample, L);
-      buffer.setSample(1, sample, R);
+      // Output: dry + attenuated wet (0.5x to prevent level boost)
+      buffer.setSample(0, sample, dryL + wetSumL * 0.5f);
+      buffer.setSample(1, sample, dryR + wetSumR * 0.5f);
     }
   }
 

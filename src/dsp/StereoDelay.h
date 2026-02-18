@@ -33,7 +33,7 @@ public:
     clampTotalFeedback();
   }
   void setCrossFeed(float cf) {
-    crossFeed_ = std::max(0.0f, std::min(0.5f, cf));
+    crossFeed_ = std::max(0.0f, std::min(0.25f, cf));
     clampTotalFeedback();
   }
   void setMix(float m) { mix_ = std::max(0.0f, std::min(1.0f, m)); }
@@ -70,7 +70,7 @@ public:
 
 private:
   static constexpr float kMaxDelaySec = 2.0f;
-  static constexpr float kMaxTotalFeedback = 0.92f; // Must be < 1.0
+  static constexpr float kMaxTotalFeedback = 0.75f; // Must be < 1.0
 
   // Ensure feedback + crossfeed don't exceed safe limit
   void clampTotalFeedback() {
@@ -89,8 +89,8 @@ private:
     // Kill denormals
     if (std::fabs(x) < 1.0e-15f)
       return 0.0f;
-    // Hard clamp to prevent runaway
-    return std::max(-4.0f, std::min(4.0f, x));
+    // Hard clamp to prevent runaway (tight for continuous input)
+    return std::max(-1.5f, std::min(1.5f, x));
   }
 
   float readDelay(const std::vector<float> &buf, float delaySamples) const {
