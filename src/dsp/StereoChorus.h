@@ -45,9 +45,10 @@ public:
     float wetL = readDelay(delayBufL_, delayL);
     float wetR = readDelay(delayBufR_, delayR);
 
-    // Write to delay with feedback (sanitize to prevent denormal/NaN)
-    delayBufL_[writePos_] = sanitize(inL + wetL * feedback_);
-    delayBufR_[writePos_] = sanitize(inR + wetR * feedback_);
+    // Write to delay (no feedback - continuous input doesn't need
+    // recirculation)
+    delayBufL_[writePos_] = sanitize(inL);
+    delayBufR_[writePos_] = sanitize(inR);
 
     // Advance write position
     writePos_ = (writePos_ + 1) % kMaxDelay;

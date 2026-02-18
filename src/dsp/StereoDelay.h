@@ -43,16 +43,10 @@ public:
     float wetL = readDelay(bufL_, delaySamples_);
     float wetR = readDelay(bufR_, delaySamples_);
 
-    // Write with cross-feedback (total feedback clamped < 1.0)
-    float writeL = inL + wetL * feedback_ + wetR * crossFeed_;
-    float writeR = inR + wetR * feedback_ + wetL * crossFeed_;
-
-    // Anti-denormal + hard clamp
-    writeL = sanitize(writeL);
-    writeR = sanitize(writeR);
-
-    bufL_[writePos_] = writeL;
-    bufR_[writePos_] = writeR;
+    // Write input only (no feedback - continuous input doesn't need
+    // recirculation)
+    bufL_[writePos_] = sanitize(inL);
+    bufR_[writePos_] = sanitize(inR);
 
     // Advance write position
     writePos_ = (writePos_ + 1) % maxDelaySamples_;

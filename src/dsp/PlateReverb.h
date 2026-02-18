@@ -84,7 +84,8 @@ public:
       lfoPhase_ -= 1.0f;
 
     // === Tank Path 1 ===
-    float tank1 = diffused + tank2Out_ * decay_;
+    // Cross-coupling reduced (decay_*0.5) for continuous input stability
+    float tank1 = diffused + tank2Out_ * decay_ * 0.5f;
     tank1 = allpassMod(tankAP1_, tankAP1Pos_, tank1, -0.7f, lfo);
     writeBuf(tankDelay1_, tankDelay1Pos_, tank1);
     tank1 = readBuf(tankDelay1_, tankDelay1Pos_,
@@ -97,7 +98,7 @@ public:
                              static_cast<int>(tankDelay2_.size()) - 1);
 
     // === Tank Path 2 ===
-    float tank2 = diffused + tank1Out * decay_;
+    float tank2 = diffused + tank1Out * decay_ * 0.5f;
     tank2 = allpassMod(tankAP3_, tankAP3Pos_, tank2, -0.7f, -lfo);
     writeBuf(tankDelay3_, tankDelay3Pos_, tank2);
     tank2 = readBuf(tankDelay3_, tankDelay3Pos_,
