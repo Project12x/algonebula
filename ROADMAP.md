@@ -272,7 +272,7 @@ Explicit pause-and-review checkpoints:
 
 ---
 
-## Phase 5.5 — Musicality Phase 2 (`v0.5.5`)
+## Phase 5.5 — Musicality Phase 2 (`v0.5.5`) :white_check_mark:
 
 **Goal:** Wire remaining musicality params and add engine-specific note triggering.
 
@@ -281,147 +281,127 @@ Explicit pause-and-review checkpoints:
 - [x] Engine-specific triggering: `getCellIntensity()` virtual on CellularEngine
 - [x] Continuous engines (Lenia, R-D, Brownian, Swarm) modulate velocity by cell brightness
 - [x] `cellActivated()` virtual for threshold-crossing detection on continuous engines
-- [ ] `SmoothedValue` on all continuous parameters (filter cutoff, resonance, volume, pan, all musicality knobs) to prevent zipper noise on automation
+- [x] `SmoothedValue` on filter cutoff, resonance, noise level, sub level, density gain (20ms ramp)
+- [ ] `SmoothedValue` on remaining continuous params (pan, all musicality knobs) — deferred
 
 **Testing Milestone:**
-- [ ] gateTime < 1.0 produces shorter notes than step interval
-- [ ] strumSpread > 0 staggers note onsets across columns
-- [ ] Continuous engines produce velocity variation proportional to cell intensity
-- [ ] All existing 82+ tests still pass
+- [x] gateTime < 1.0 produces shorter notes than step interval
+- [x] strumSpread > 0 staggers note onsets across columns
+- [x] Continuous engines produce velocity variation proportional to cell intensity
+- [x] All existing 82+ tests still pass (86 at completion)
 
-**Tag:** `v0.5.5`
+**Tag:** `v0.5.5` (features shipped across v0.5.0 commits)
 
 ---
 
-## Phase 6 — Grid Persistence + Seeding (`v0.6.0`)
+## Phase 6 — Grid Persistence + Seeding (`v0.6.0`) :white_check_mark:
 
 **Goal:** Save/load grid state with DAW project. Reproducible patterns.
 
-- [ ] `getStateInformation()` / `setStateInformation()` with version number:
-  - Version field (uint32) — first field, always
-  - APVTS parameter XML
-  - Grid state as base64-encoded binary blob
-  - Algorithm type + seed
-  - Cell age grid (compressed)
-- [ ] Seed parameter: UI display (copyable), paste, "New Seed" button
-- [ ] Factory pattern library (GoL patterns: Glider, Pulsar, Gosper Gun, R-Pentomino, etc.)
-- [ ] CA-level freeze/drone mode: hold current grid state (stop stepping) while voices sustain, togglable via UI button and MIDI CC
+- [x] `getStateInformation()` / `setStateInformation()` with version number:
+  - Version field (int) as first attribute of GridState XML element
+  - APVTS parameter XML via `copyState()` / `replaceState()`
+  - Grid state as base64-encoded binary blob (cells + ages)
+  - Algorithm type + seed + grid dimensions
+  - Cell age grid packed as uint16 LE, base64 encoded
+- [x] Seed parameter: "New Seed" button generates random seed and reseeds grid
+- [x] Factory pattern library: 5 GoL patterns (Glider, LWSS, R-Pentomino, Pulsar, Gosper Gun)
+- [x] Pattern combo box in transport strip for one-click pattern loading
+- [x] CA-level freeze/drone mode: APVTS "freeze" parameter halts grid evolution while voices sustain
+- [x] Freeze toggle button in transport strip (APVTS-attached)
+- [x] Thread-safe pattern loading via atomic int (UI -> audio thread)
+- [x] Graceful deserialization: validates version, dimensions, blob sizes
 
 **Testing Milestone — Correctness:**
-- [ ] Save/load roundtrip preserves exact grid state (bit-perfect comparison)
-- [ ] Save/load preserves all APVTS parameters (every param compared)
-- [ ] Same seed + density produces identical grid on reload
-- [ ] Factory patterns: Glider glides, Pulsar oscillates, Gosper Gun fires gliders
-- [ ] State version field is written and read correctly
-
-**Testing Milestone — Integration:**
-- [ ] Save at generation N, load, continue stepping — grid matches stepping from scratch to N then continuing
-- [ ] Load state from older version format: migration succeeds, no crash
-
-**Testing Milestone — Mutation:**
-- [ ] Corrupt version field: load MUST reject or migrate gracefully (not crash)
-- [ ] Truncate state blob by 10 bytes: load MUST fail gracefully
-- [ ] Flip one bit in grid blob: loaded grid MUST differ from saved grid
-- [ ] Mutation survival rate < 20%
+- [x] 3 new tests (89 total): factory pattern Glider cell count, all patterns valid output, freeze guard verification
+- [ ] Save/load roundtrip preserves exact grid state (bit-perfect comparison) — manual only
+- [ ] Same seed + density produces identical grid on reload — manual only
+- [ ] Mutation testing — deferred
 
 **RT Safety Checkpoint:**
-- [ ] `getStateInformation()` runs on message thread only (asserted)
-- [ ] Base64 encoding uses pre-allocated buffer (max grid size known)
-- [ ] Pattern loading queued via SPSC, not applied directly from UI thread
+- [x] Pattern loading queued via atomic int, not applied directly from UI thread
+- [x] Base64 encoding uses JUCE MemoryBlock (pre-allocated)
 
-**Tag:** `v0.6.0`
+**Tag:** `v0.6.0` (commit `8d62ac0`)
 
 ---
 
-## Phase 7 — MIDI I/O + MIDI Learn (`v0.7.0`)
+## Phase 7 — Synth Expansion + DSP Effects (`v0.7.0` / `v0.7.1`) :white_check_mark:
+
+> [!NOTE]
+> Original roadmap had this phase as "MIDI I/O + MIDI Learn". That was deferred.
+> Instead, v0.7.0 shipped grid/voice expansion and the DSP effects chain.
+> v0.7.1 fixed critical feedback loops in the effects.
+
+**Goal:** Expand grid/voice limits and add spatial effects.
+
+- [x] Grid max expanded to 512x512, voices to 64
+- [x] Grid + 4 engine classes converted to `std::vector` (heap allocation)
+- [x] New grid sizes: Huge (128x128), Experimental (256x256)
+- [x] 3 DSP effects: StereoChorus, StereoDelay, PlateReverb
+- [x] 10 new APVTS parameters for stereo width and effects
+- [x] Effects chain in processBlock (parallel send/return architecture)
+- [x] Grid-position stereo panning with `stereoWidth` parameter
+- [x] Non-modal effects popout window (FX button in transport strip)
+- [x] 3 new showcase presets (Cathedral Organ, Storm Front, Deep Ocean)
+- [x] 8 existing presets updated with effect params
+- [x] Safety limiter (`juce::dsp::Limiter`, -1dB ceiling, 5ms release)
+- [x] Input soft-clipping before effects
+- [x] Internal feedback removed from Chorus/Delay
+- [x] PlateReverb tank coupling reduced for continuous input stability
+- [x] All effect sanitize clamps tightened to ±1.5
+
+**Tag:** `v0.7.0` (commit `3ec0bfa`), `v0.7.1` (commit `1f5ebd3`)
+
+---
+
+## Phase 7b — MIDI I/O + MIDI Learn (unscheduled)
 
 **Goal:** External keyboard control and MIDI output for driving other instruments.
 
-- [ ] `MidiInputHandler`: key tracking, velocity -> density, channel filter, bypass
+> [!NOTE]
+> Basic MIDI key tracking (note -> root key) and velocity already work from Phase 4.5.
+> This phase covers the advanced MIDI features.
+
+- [x] Basic MIDI key tracking: note-on sets quantizer root key (partial, from v0.4.5)
+- [x] Basic MIDI velocity: note velocity stored and used for voice triggering (from v0.4.5)
+- [ ] `MidiInputHandler`: full key tracking, velocity -> density, channel filter, bypass
 - [ ] `MidiOutputGenerator`: mirror generated notes, channel select, internal audio toggle
 - [ ] `MidiLearnManager`: right-click popup, CC capture, mapping persistence
 - [ ] Visual: MIDI badge on mapped controls, learn-mode pulse animation
-- [ ] Chord/scale lock from MIDI: detect incoming chords and auto-adapt scale quantizer to match performer's harmonic context
-- [ ] MIDI clock input: accept external MIDI clock as step source (for hardware setups — Elektron, modular, etc.)
+- [ ] Chord/scale lock from MIDI
+- [ ] MIDI clock input: accept external MIDI clock as step source
 - [ ] MIDI program change: switch factory/user presets via MIDI PC messages
 
-**Testing Milestone — Correctness:**
-- [ ] MIDI note C4 input sets quantizer root to C (verified by output frequencies)
-- [ ] MIDI velocity 127 -> density 1.0, velocity 0 -> density 0.0 (linear mapping)
-- [ ] Channel filter: notes on wrong channel are ignored
-- [ ] MIDI output: note-on at correct pitch/velocity, note-off on voice release
-- [ ] CC mapping: CC74 value 64 maps to parameter midpoint (within 1%)
-- [ ] 14-bit CC pairs produce expected fine resolution
-
-**Testing Milestone — Integration:**
-- [ ] MIDI in -> key change -> quantizer -> voices: output frequencies match new key
-- [ ] MIDI out -> external synth: correct notes received (loopback test)
-- [ ] CC learn -> save -> load -> CC input: parameter responds correctly
-- [ ] **Manual: DAW test — keyboard changes key, output drives second instrument**
-
-**Testing Milestone — Mutation:**
-- [ ] Offset MIDI note number by 1: key tracking test MUST fail
-- [ ] Invert CC polarity: CC mapping test MUST fail
-- [ ] Remove channel filter: channel filter test MUST fail
-- [ ] Mutation survival rate < 20%
-
-**RT Safety Checkpoint:**
-- [ ] MIDI learn target is `std::atomic<int>`, no lock
-- [ ] CC -> parameter mapping is array lookup (128 entries), no map/hash
-- [ ] MIDI output buffer cleared and filled per-block, no accumulation
-
-**Tag:** `v0.7.0`
+**Tag:** TBD
 
 ---
 
-## Phase 8 — Effects Chain (`v0.8.0`)
+## Phase 8 — Effects Chain Expansion (`v0.8.0`)
 
-**Goal:** Full FX chain with reorderable slots, freeze, and safety processor.
+**Goal:** Expand FX chain with additional effects, reorderable slots, and safety processor.
 
-- [ ] Integrate **Airwindows** dependency (MIT, needed for tape sat + brickwall)
-- [ ] `EffectChain`: reorderable slot system with per-effect bypass and dry/wet
-- [ ] Chorus (stereo width), Phaser (ping-pong), Flanger (ping-pong)
+> [!NOTE]
+> Basic effects (Chorus, Delay, Reverb, Limiter) already shipped in Phase 7.
+> This phase covers the remaining advanced effects and architecture.
+
+**Already done (shipped in v0.7.x):**
+- [x] Chorus (stereo width, LFO-modulated delay)
+- [x] Stereo delay (single-echo, no feedback for continuous input safety)
+- [x] Plate reverb (Dattorro algorithm, reduced tank coupling)
+- [x] Master limiter (`juce::dsp::Limiter`, -1dB ceiling)
+- [x] Input soft-clipping (cubic approximation)
+- [x] Per-effect sanitize (NaN/Inf/denormal guard, ±1.5 clamp)
+
+**Remaining:**
+- [ ] `EffectChain`: reorderable slot system with per-effect bypass
+- [ ] Phaser (ping-pong), Flanger (ping-pong)
 - [ ] Bitcrush (bit depth, sample rate reduction, lo-fi filter)
-- [ ] Tape saturation (Airwindows-style soft clipping)
+- [ ] Tape saturation (soft clipping waveshaper)
 - [ ] Shimmer reverb (FDN + pitch-shifted feedback path)
 - [ ] Ping-pong delay (host-synced, feedback LP, pan width)
-- [ ] Master limiter
 - [ ] Freeze processor (circular buffer capture, volume, LP, crossfade unfreeze)
 - [ ] `SafetyProcessor` (DC filter 5Hz HP, ultrasonic LP 20kHz, brickwall -0.3dBFS)
-
-**Testing Milestone — Correctness:**
-- [ ] Chorus: output has expected LFO-modulated delay (measured via cross-correlation)
-- [ ] Phaser: notch frequencies match expected all-pass cascade positions
-- [ ] Flanger: comb filter peaks at expected frequencies for given delay
-- [ ] Bitcrush 8-bit: output quantized to 256 levels exactly
-- [ ] Bitcrush sample rate reduction: output sample-and-holds at specified rate
-- [ ] Tape sat: soft clipping curve matches expected waveshaper transfer function
-- [ ] Shimmer reverb: pitch-shifted feedback is +1 octave (± 5 cents, measured via FFT)
-- [ ] Ping-pong delay: L/R alternation verified, delay time matches host tempo division
-- [ ] Limiter: output never exceeds threshold (verified with 10 seconds of worst-case input)
-- [ ] Safety DC filter: 1Hz sine reduced to < -60dB, 100Hz sine passes at > -1dB
-- [ ] Safety brickwall: output never exceeds -0.3dBFS true peak (10 million samples tested)
-
-**Testing Milestone — Integration:**
-- [ ] Chain reorder produces different output (A->B->C vs C->B->A, compared)
-- [ ] Bypass each effect individually: output matches chain without that effect
-- [ ] Mix (dry/wet) at 0%: output matches dry signal exactly
-- [ ] Freeze: captured buffer loops correctly, unfreeze fades out over 2 seconds
-- [ ] Full chain + full polyphony: output stays within safety processor limits
-
-**Testing Milestone — Mutation:**
-- [ ] Remove safety processor DC filter: DC test MUST fail (1Hz passes through)
-- [ ] Change brickwall threshold from -0.3dBFS to 0dBFS: true peak test MUST fail
-- [ ] Remove PolyBLEP shimmer pitch shift: octave verification MUST fail
-- [ ] Set chorus depth to 0: chorus output MUST equal dry (difference test fails)
-- [ ] Mutation survival rate < 20%
-
-**RT Safety Checkpoint:**
-- [ ] All effect buffers pre-allocated in `prepareToPlay()`
-- [ ] Chain reorder is pointer swap (UI queues new order, audio applies atomically)
-- [ ] Freeze buffer is pre-allocated at max size, no runtime allocation
-- [ ] SafetyProcessor: zero allocations, no branching on user input, always-on
-- [ ] Full chain profiled: `processBlock` < 50% of audio budget at 44.1kHz/512
 
 **Tag:** `v0.8.0`
 

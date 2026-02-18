@@ -3,6 +3,24 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.1] - 2026-02-17
+
+### Fixed
+
+- Effects chain restructured to parallel send/return architecture (prevents cascading feedback)
+- Removed internal feedback from StereoChorus (pure modulation, no recirculation)
+- Removed internal feedback/cross-feed from StereoDelay (single clean echo per channel)
+- Reduced PlateReverb tank cross-coupling by 50% (`decay_ * 0.5f`) to prevent infinite sustain
+- Added `juce::dsp::Limiter` as final output stage (-1dB ceiling, 5ms release)
+- Added input soft-clipping before effects (cubic approximation)
+- Wet signal returns attenuated by 0.5x to prevent level boosts
+- All effect sanitize clamps tightened from +/-4.0 to +/-1.5
+- Max delay feedback reduced from 0.95 to 0.75
+- Max reverb decay reduced from 0.99 to 0.85 (APVTS range and internal clamp)
+- Max delay cross-feed reduced from 0.5 to 0.25
+- Fixed NaN/denormal blowup causing audio loss in effects chain
+- Factory preset reverb decay values capped to new 0.85 maximum
+
 ## [0.7.0] - 2026-02-17
 
 ### Added
