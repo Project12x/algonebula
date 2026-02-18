@@ -22,9 +22,17 @@
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
 
+#include "dsp/Bitcrush.h"
+#include "dsp/EffectChain.h"
+#include "dsp/PingPongDelay.h"
 #include "dsp/PlateReverb.h"
+#include "dsp/SafetyProcessor.h"
+#include "dsp/ShimmerReverb.h"
 #include "dsp/StereoChorus.h"
 #include "dsp/StereoDelay.h"
+#include "dsp/StereoFlanger.h"
+#include "dsp/StereoPhaser.h"
+#include "dsp/TapeSaturation.h"
 
 // Forward declarations
 class NebulaLookAndFeel;
@@ -157,13 +165,26 @@ public:
   float getDensityGain() const { return densityGain; }
 
 private:
-  // --- DSP Effects ---
+  // --- DSP Effects (individual instances) ---
   StereoChorus chorus;
   StereoDelay delay;
   PlateReverb reverb;
+  StereoPhaser phaser;
+  StereoFlanger flanger;
+  Bitcrush bitcrush;
+  TapeSaturation tapeSat;
+  ShimmerReverb shimmer;
+  PingPongDelay pingPong;
 
-  // --- Safety limiter (brick-wall, last in chain) ---
+  // --- Effect chain manager ---
+  EffectChain effectChain;
+
+  // --- Safety limiter (brick-wall, before SafetyProcessor) ---
   juce::dsp::Limiter<float> safetyLimiter;
+
+  // --- SafetyProcessor (DC filter + ultrasonic LP + brickwall, last in chain)
+  // ---
+  SafetyProcessor safetyProc;
 
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};

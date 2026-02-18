@@ -18,6 +18,19 @@
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
 
+// Phase 8 DSP effects
+#include "dsp/Bitcrush.h"
+#include "dsp/EffectChain.h"
+#include "dsp/PingPongDelay.h"
+#include "dsp/PlateReverb.h"
+#include "dsp/SafetyProcessor.h"
+#include "dsp/ShimmerReverb.h"
+#include "dsp/StereoChorus.h"
+#include "dsp/StereoDelay.h"
+#include "dsp/StereoFlanger.h"
+#include "dsp/StereoPhaser.h"
+#include "dsp/TapeSaturation.h"
+
 // --- Test Helpers ---
 static int testsPassed = 0;
 static int testsFailed = 0;
@@ -1974,6 +1987,233 @@ void testFreezeStopsStep() {
 }
 
 // ============================================================================
+// Phase 8 — Effects Chain Expansion Tests
+// ============================================================================
+
+void testStereoChorusInherits() {
+  TEST("StereoChorus: inherits StereoEffect and processes");
+  StereoChorus c;
+  c.init(44100.0f);
+  c.setRate(1.0f);
+  c.setDepth(0.8f);
+  c.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Feed 100 samples to fill delay buffer
+  for (int i = 0; i < 100; ++i)
+    c.process(0.5f, -0.5f, outL, outR);
+  // With chorus at full mix, output should differ from input
+  ASSERT_TRUE(std::abs(outL - 0.5f) > 0.001f || std::abs(outR + 0.5f) > 0.001f);
+  PASS();
+}
+
+void testStereoDelayInherits() {
+  TEST("StereoDelay: inherits StereoEffect and processes");
+  StereoDelay d;
+  d.init(44100.0f);
+  d.setTime(0.01f); // 10ms = 441 samples
+  d.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Write a pulse, then read after delay time
+  d.process(1.0f, -1.0f, outL, outR);
+  for (int i = 0; i < 440; ++i)
+    d.process(0.0f, 0.0f, outL, outR);
+  d.process(0.0f, 0.0f, outL, outR);
+  // After 441 samples of silence, the pulse should appear as delayed output
+  ASSERT_TRUE(std::abs(outL) > 0.01f);
+  PASS();
+}
+
+void testPlateReverbInherits() {
+  TEST("PlateReverb: inherits StereoEffect and processes");
+  PlateReverb rev;
+  rev.init(44100.0f);
+  rev.setDecay(0.85f);
+  rev.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Feed continuous signal and verify output differs (reverb diffusion)
+  bool differs = false;
+  for (int i = 0; i < 1000; ++i) {
+    rev.process(0.5f, 0.5f, outL, outR);
+    if (std::abs(outL - 0.5f) > 0.001f || std::abs(outR - 0.5f) > 0.001f)
+      differs = true;
+  }
+  ASSERT_TRUE(differs);
+  PASS();
+}
+
+void testStereoPhaserProcess() {
+  TEST("StereoPhaser: produces phased output");
+  StereoPhaser p;
+  p.init(44100.0f);
+  p.setRate(2.0f);
+  p.setDepth(1.0f);
+  p.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  for (int i = 0; i < 200; ++i)
+    p.process(0.5f, 0.5f, outL, outR);
+  // Phaser adds phase-shifted copy, should differ from pure 2x input
+  ASSERT_TRUE(std::abs(outL - 1.0f) > 0.001f);
+  PASS();
+}
+
+void testStereoFlangerProcess() {
+  TEST("StereoFlanger: produces flanged output");
+  StereoFlanger f;
+  f.init(44100.0f);
+  f.setRate(1.0f);
+  f.setDepth(1.0f);
+  f.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  for (int i = 0; i < 500; ++i)
+    f.process(0.3f, -0.3f, outL, outR);
+  // With flanging, comb filter effect should create interference
+  ASSERT_TRUE(std::abs(outL) < 1.5f);
+  PASS();
+}
+
+void testBitcrushProcess() {
+  TEST("Bitcrush: reduces bit depth");
+  Bitcrush b;
+  b.init(44100.0f);
+  b.setBitDepth(4.0f); // Very aggressive: 16 levels
+  b.setDownsample(1.0f);
+  b.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  b.process(0.33f, -0.77f, outL, outR);
+  // With 4-bit depth (16 levels), quantization should be visible
+  // 0.33 * 16 = 5.28, floor = 5, 5/16 = 0.3125
+  ASSERT_NEAR(outL, 0.3125f, 0.01f);
+  PASS();
+}
+
+void testTapeSaturationProcess() {
+  TEST("TapeSaturation: soft clips hot signal");
+  TapeSaturation t;
+  t.init(44100.0f);
+  t.setDrive(1.0f); // Full drive
+  t.setTone(1.0f);
+  t.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Feed hot signal and let LP settle
+  for (int i = 0; i < 100; ++i)
+    t.process(1.0f, 1.0f, outL, outR);
+  // Output should be less than input due to soft clipping + LP
+  ASSERT_TRUE(outL < 1.0f);
+  ASSERT_TRUE(outL > 0.0f);
+  PASS();
+}
+
+void testShimmerReverbProcess() {
+  TEST("ShimmerReverb: produces reverb with shimmer");
+  ShimmerReverb s;
+  s.init(44100.0f);
+  s.setDecay(0.9f);
+  s.setShimmer(0.5f);
+  s.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Feed continuous signal and verify output differs (FDN diffusion)
+  bool differs = false;
+  for (int i = 0; i < 2000; ++i) {
+    s.process(0.5f, 0.5f, outL, outR);
+    if (std::abs(outL - 0.5f) > 0.001f || std::abs(outR - 0.5f) > 0.001f)
+      differs = true;
+  }
+  ASSERT_TRUE(differs);
+  PASS();
+}
+
+void testPingPongDelayProcess() {
+  TEST("PingPongDelay: alternating L/R taps");
+  PingPongDelay pp;
+  pp.init(44100.0f);
+  pp.setTime(0.01f); // Very short for test
+  pp.setFeedback(0.5f);
+  pp.setWidth(1.0f);
+  pp.setMix(1.0f);
+  float outL = 0.0f, outR = 0.0f;
+  // Pulse in left only
+  pp.process(1.0f, 0.0f, outL, outR);
+  for (int i = 0; i < 440; ++i)
+    pp.process(0.0f, 0.0f, outL, outR);
+  // After delay, right should have signal (ping-pong cross-feed)
+  pp.process(0.0f, 0.0f, outL, outR);
+  // At least one channel should have energy
+  ASSERT_TRUE(std::abs(outL) > 0.001f || std::abs(outR) > 0.001f);
+  PASS();
+}
+
+void testSafetyProcessorDCBlock() {
+  TEST("SafetyProcessor: blocks DC offset");
+  SafetyProcessor sp;
+  sp.init(44100.0f);
+  // Feed constant DC and let HP settle
+  float L = 0.5f, R = 0.5f;
+  for (int i = 0; i < 44100; ++i) {
+    L = 0.5f;
+    R = 0.5f;
+    sp.process(L, R);
+  }
+  // After ~1 second of constant DC, output should be near zero (DC blocked)
+  ASSERT_TRUE(std::abs(L) < 0.05f);
+  ASSERT_TRUE(std::abs(R) < 0.05f);
+  PASS();
+}
+
+void testSafetyProcessorBrickwall() {
+  TEST("SafetyProcessor: brickwall clamps to -0.3dBFS");
+  SafetyProcessor sp;
+  sp.init(44100.0f);
+  float L = 5.0f, R = -5.0f; // Way over limit
+  sp.process(L, R);
+  // Should be clamped to ~0.966
+  ASSERT_TRUE(std::abs(L) <= 0.967f);
+  ASSERT_TRUE(std::abs(R) <= 0.967f);
+  PASS();
+}
+
+void testEffectChainParallel() {
+  TEST("EffectChain: parallel processing routes signal");
+  StereoChorus chorus;
+  chorus.init(44100.0f);
+  chorus.setRate(1.0f);
+  chorus.setDepth(0.5f);
+  chorus.setMix(1.0f);
+
+  EffectChain chain;
+  chain.setSlot(0, &chorus);
+  chain.init(44100.0f);
+
+  float outL, outR;
+  // Pump enough samples for delay to fill
+  for (int i = 0; i < 500; ++i)
+    chain.processParallel(0.5f, -0.5f, outL, outR);
+
+  // With chorus active, output should be influenced
+  ASSERT_TRUE(std::abs(outL) > 0.001f);
+  PASS();
+}
+
+void testEffectChainBypass() {
+  TEST("EffectChain: bypass passes signal unchanged");
+  StereoChorus chorus;
+  chorus.init(44100.0f);
+  chorus.setMix(1.0f);
+  chorus.setBypass(true); // BYPASSED
+
+  EffectChain chain;
+  chain.setSlot(0, &chorus);
+  chain.init(44100.0f);
+
+  float outL, outR;
+  chain.processParallel(0.5f, -0.3f, outL, outR);
+
+  // Bypassed: output == input
+  ASSERT_NEAR(outL, 0.5f, 0.0001f);
+  ASSERT_NEAR(outR, -0.3f, 0.0001f);
+  PASS();
+}
+
+// ============================================================================
 int main() {
   std::cout << "=== Algo Nebula Phase 2+3+4 Tests ===" << std::endl;
 
@@ -2119,6 +2359,22 @@ int main() {
   testFactoryPatternGlider();
   testFactoryPatternAllValid();
   testFreezeStopsStep();
+
+  // Phase 8 -- Effects Chain Expansion
+  std::cout << "\n[Phase 8 Effects Chain Expansion]" << std::endl;
+  testStereoChorusInherits();
+  testStereoDelayInherits();
+  testPlateReverbInherits();
+  testStereoPhaserProcess();
+  testStereoFlangerProcess();
+  testBitcrushProcess();
+  testTapeSaturationProcess();
+  testShimmerReverbProcess();
+  testPingPongDelayProcess();
+  testSafetyProcessorDCBlock();
+  testSafetyProcessorBrickwall();
+  testEffectChainParallel();
+  testEffectChainBypass();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;

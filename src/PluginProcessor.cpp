@@ -258,6 +258,72 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("reverbMix", 1), "Reverb Mix",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
+  // --- Phaser ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("phaserRate", 1), "Phaser Rate",
+      juce::NormalisableRange<float>(0.05f, 5.0f, 0.01f), 0.4f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("phaserDepth", 1), "Phaser Depth",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.7f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("phaserMix", 1), "Phaser Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Flanger ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("flangerRate", 1), "Flanger Rate",
+      juce::NormalisableRange<float>(0.05f, 5.0f, 0.01f), 0.3f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("flangerDepth", 1), "Flanger Depth",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.6f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("flangerMix", 1), "Flanger Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Bitcrush ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("bitcrushBits", 1), "Bitcrush Depth",
+      juce::NormalisableRange<float>(1.0f, 16.0f, 0.1f), 8.0f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("bitcrushRate", 1), "Bitcrush Rate",
+      juce::NormalisableRange<float>(1.0f, 50.0f, 0.1f), 1.0f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("bitcrushMix", 1), "Bitcrush Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Tape Saturation ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("tapeDrive", 1), "Tape Drive",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.3f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("tapeTone", 1), "Tape Tone",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.7f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("tapeMix", 1), "Tape Sat Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Shimmer Reverb ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("shimmerDecay", 1), "Shimmer Decay",
+      juce::NormalisableRange<float>(0.0f, 0.95f, 0.01f), 0.8f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("shimmerAmount", 1), "Shimmer Amount",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.3f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("shimmerMix", 1), "Shimmer Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Ping Pong Delay ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("pingPongTime", 1), "Ping Pong Time",
+      juce::NormalisableRange<float>(0.01f, 2.0f, 0.01f), 0.375f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("pingPongFeedback", 1), "Ping Pong Feedback",
+      juce::NormalisableRange<float>(0.0f, 0.85f, 0.01f), 0.4f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("pingPongMix", 1), "Ping Pong Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
   return layout;
 }
 
@@ -290,11 +356,32 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   smoothDensityGain.setCurrentAndTargetValue(1.0f);
 
   // Initialize DSP effects
-  chorus.init(static_cast<float>(sampleRate));
-  delay.init(static_cast<float>(sampleRate));
-  reverb.init(static_cast<float>(sampleRate));
+  float sr = static_cast<float>(sampleRate);
+  chorus.init(sr);
+  delay.init(sr);
+  reverb.init(sr);
+  phaser.init(sr);
+  flanger.init(sr);
+  bitcrush.init(sr);
+  tapeSat.init(sr);
+  shimmer.init(sr);
+  pingPong.init(sr);
+  safetyProc.init(sr);
 
-  // Initialize safety limiter (brick-wall, last in chain)
+  // Set up effect chain slots (order: modulation -> delay -> reverb ->
+  // distortion)
+  effectChain.setSlot(0, &chorus);
+  effectChain.setSlot(1, &phaser);
+  effectChain.setSlot(2, &flanger);
+  effectChain.setSlot(3, &delay);
+  effectChain.setSlot(4, &pingPong);
+  effectChain.setSlot(5, &reverb);
+  effectChain.setSlot(6, &shimmer);
+  effectChain.setSlot(7, &bitcrush);
+  effectChain.setSlot(8, &tapeSat);
+  effectChain.init(sr);
+
+  // Initialize safety limiter (brick-wall, before SafetyProcessor)
   {
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
@@ -854,25 +941,57 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   const float chorusMixP = apvts.getRawParameterValue("chorusMix")->load();
   const float delayMixP = apvts.getRawParameterValue("delayMix")->load();
   const float reverbMixP = apvts.getRawParameterValue("reverbMix")->load();
+  const float phaserMixP = apvts.getRawParameterValue("phaserMix")->load();
+  const float flangerMixP = apvts.getRawParameterValue("flangerMix")->load();
+  const float bitcrushMixP = apvts.getRawParameterValue("bitcrushMix")->load();
+  const float tapeMixP = apvts.getRawParameterValue("tapeMix")->load();
+  const float shimmerMixP = apvts.getRawParameterValue("shimmerMix")->load();
+  const float pingPongMixP = apvts.getRawParameterValue("pingPongMix")->load();
 
   // Configure effects (parameter reads, not per-sample)
-  // Effects run at 100% wet internally; dry/wet mixing is done externally
   chorus.setRate(apvts.getRawParameterValue("chorusRate")->load());
   chorus.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
-  chorus.setMix(1.0f); // Always wet-only; we blend externally
+  chorus.setMix(chorusMixP);
+
   delay.setTime(apvts.getRawParameterValue("delayTime")->load());
   delay.setFeedback(apvts.getRawParameterValue("delayFeedback")->load());
-  delay.setMix(1.0f); // Always wet-only
+  delay.setMix(delayMixP);
+
   reverb.setDecay(apvts.getRawParameterValue("reverbDecay")->load());
   reverb.setDamping(apvts.getRawParameterValue("reverbDamping")->load());
-  reverb.setMix(1.0f); // Always wet-only
+  reverb.setMix(reverbMixP);
+
+  phaser.setRate(apvts.getRawParameterValue("phaserRate")->load());
+  phaser.setDepth(apvts.getRawParameterValue("phaserDepth")->load());
+  phaser.setMix(phaserMixP);
+
+  flanger.setRate(apvts.getRawParameterValue("flangerRate")->load());
+  flanger.setDepth(apvts.getRawParameterValue("flangerDepth")->load());
+  flanger.setMix(flangerMixP);
+
+  bitcrush.setBitDepth(apvts.getRawParameterValue("bitcrushBits")->load());
+  bitcrush.setDownsample(apvts.getRawParameterValue("bitcrushRate")->load());
+  bitcrush.setMix(bitcrushMixP);
+
+  tapeSat.setDrive(apvts.getRawParameterValue("tapeDrive")->load());
+  tapeSat.setTone(apvts.getRawParameterValue("tapeTone")->load());
+  tapeSat.setMix(tapeMixP);
+
+  shimmer.setDecay(apvts.getRawParameterValue("shimmerDecay")->load());
+  shimmer.setShimmer(apvts.getRawParameterValue("shimmerAmount")->load());
+  shimmer.setMix(shimmerMixP);
+
+  pingPong.setTime(apvts.getRawParameterValue("pingPongTime")->load());
+  pingPong.setFeedback(apvts.getRawParameterValue("pingPongFeedback")->load());
+  pingPong.setMix(pingPongMixP);
 
   // --- Apply effects chain (parallel send/return architecture) ---
-  // Each effect receives the soft-clipped dry signal independently.
-  // Wet returns are scaled by their mix parameter and summed.
-  if (buffer.getNumChannels() >= 2 &&
-      (chorusMixP > 0.0f || delayMixP > 0.0f || reverbMixP > 0.0f)) {
+  bool anyEffectActive =
+      chorusMixP > 0.0f || delayMixP > 0.0f || reverbMixP > 0.0f ||
+      phaserMixP > 0.0f || flangerMixP > 0.0f || bitcrushMixP > 0.0f ||
+      tapeMixP > 0.0f || shimmerMixP > 0.0f || pingPongMixP > 0.0f;
 
+  if (buffer.getNumChannels() >= 2 && anyEffectActive) {
     // Soft-clip function to tame hot signals before they enter effects
     auto softClip = [](float x) -> float {
       if (x > 1.5f)
@@ -890,36 +1009,11 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       float clippedL = softClip(dryL);
       float clippedR = softClip(dryR);
 
-      float wetSumL = 0.0f;
-      float wetSumR = 0.0f;
+      float outL, outR;
+      effectChain.processParallel(clippedL, clippedR, outL, outR);
 
-      // Chorus (parallel send)
-      if (chorusMixP > 0.0f) {
-        float cL, cR;
-        chorus.process(clippedL, clippedR, cL, cR);
-        wetSumL += (cL - clippedL) * chorusMixP; // wet-only * user mix
-        wetSumR += (cR - clippedR) * chorusMixP;
-      }
-
-      // Delay (parallel send)
-      if (delayMixP > 0.0f) {
-        float dL, dR;
-        delay.process(clippedL, clippedR, dL, dR);
-        wetSumL += (dL - clippedL) * delayMixP;
-        wetSumR += (dR - clippedR) * delayMixP;
-      }
-
-      // Reverb (parallel send)
-      if (reverbMixP > 0.0f) {
-        float rL, rR;
-        reverb.process(clippedL, clippedR, rL, rR);
-        wetSumL += (rL - clippedL) * reverbMixP;
-        wetSumR += (rR - clippedR) * reverbMixP;
-      }
-
-      // Output: dry + attenuated wet (0.5x to prevent level boost)
-      buffer.setSample(0, sample, dryL + wetSumL * 0.5f);
-      buffer.setSample(1, sample, dryR + wetSumR * 0.5f);
+      buffer.setSample(0, sample, outL);
+      buffer.setSample(1, sample, outR);
     }
   }
 
@@ -928,6 +1022,18 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     juce::dsp::AudioBlock<float> block(buffer);
     juce::dsp::ProcessContextReplacing<float> ctx(block);
     safetyLimiter.process(ctx);
+  }
+
+  // --- SafetyProcessor (DC filter + ultrasonic LP + brickwall, always active)
+  // ---
+  if (buffer.getNumChannels() >= 2) {
+    for (int sample = 0; sample < numSamples; ++sample) {
+      float L = buffer.getSample(0, sample);
+      float R = buffer.getSample(1, sample);
+      safetyProc.process(L, R);
+      buffer.setSample(0, sample, L);
+      buffer.setSample(1, sample, R);
+    }
   }
 
   // Update grid snapshot for GL/UI thread (simple copy, no lock)

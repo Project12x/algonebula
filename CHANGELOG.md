@@ -3,6 +3,28 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.8.0] - 2026-02-18
+
+### Added
+
+- **StereoEffect** abstract base class for polymorphic effect management (init/process/reset/mix/bypass)
+- **EffectChain** manager: ordered array of up to 9 effect slots with parallel and series processing modes
+- **SafetyProcessor**: always-on DC blocking (5Hz HPF), ultrasonic filter (20kHz LPF), and -0.3dBFS brickwall limiter
+- **StereoPhaser**: 4-stage allpass cascade with LFO-swept cutoff (rate, depth, mix)
+- **StereoFlanger**: short modulated delay with triangle LFO and optional feedback (rate, depth, mix)
+- **Bitcrush**: bit depth reduction and sample rate reduction via sample-and-hold (bits, rate, mix)
+- **TapeSaturation**: soft clipping waveshaper with one-pole lowpass warmth filter (drive, tone, mix)
+- **ShimmerReverb**: FDN reverb core with octave-up pitch shifter in feedback path (decay, shimmer, mix)
+- **PingPongDelay**: alternating L/R delay taps with lowpass-filtered feedback (time, feedback, mix)
+- Updated EffectsPanel UI with controls for all 10 effect sections
+- 13 new Phase 8 tests (102 total, 0 failures)
+
+### Changed
+
+- StereoChorus, StereoDelay, PlateReverb now inherit from StereoEffect (polymorphic EffectChain compatibility)
+- processBlock uses EffectChain::processParallel() instead of manual per-effect loop
+- SafetyProcessor replaces standalone juce::dsp::Limiter as final output stage
+
 ## [0.7.1] - 2026-02-17
 
 ### Fixed

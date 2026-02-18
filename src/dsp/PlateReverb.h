@@ -4,14 +4,15 @@
 // Self-contained, header-only implementation.
 #pragma once
 
+#include "StereoEffect.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
 
-class PlateReverb {
+class PlateReverb : public StereoEffect {
 public:
-  void init(float sampleRate) {
+  void init(float sampleRate) override {
     sr_ = sampleRate;
     float scale = sr_ / 29761.0f; // Dattorro's reference rate
 
@@ -51,19 +52,17 @@ public:
 
     setDecay(0.7f);
     setDamping(0.5f);
-    setMix(0.3f);
     setPreDelay(0.0f);
   }
 
   void setDecay(float d) { decay_ = std::max(0.0f, std::min(0.85f, d)); }
   void setDamping(float d) { damping_ = std::max(0.0f, std::min(1.0f, d)); }
-  void setMix(float m) { mix_ = std::max(0.0f, std::min(1.0f, m)); }
   void setPreDelay(float seconds) {
     preDelaySamples_ =
         static_cast<int>(std::max(0.0f, std::min(0.02f, seconds)) * sr_);
   }
 
-  void process(float inL, float inR, float &outL, float &outR) {
+  void process(float inL, float inR, float &outL, float &outR) override {
     float monoIn = (inL + inR) * 0.5f;
 
     // Pre-delay
@@ -126,12 +125,13 @@ public:
     reverbL *= 0.3f; // Scale to reasonable level
     reverbR *= 0.3f;
 
-    // Mix
-    outL = inL * (1.0f - mix_) + reverbL * mix_;
-    outR = inR * (1.0f - mix_) + reverbR * mix_;
+    // Mix using base class getMix()
+    float mix = getMix();
+    outL = inL * (1.0f - mix) + reverbL * mix;
+    outR = inR * (1.0f - mix) + reverbR * mix;
   }
 
-  void reset() {
+  void reset() override {
     auto clearBuf = [](std::vector<float> &b) {
       std::fill(b.begin(), b.end(), 0.0f);
     };
@@ -155,16 +155,9 @@ public:
     resetPositions();
   }
 
-private:
-  // Kill denormals, NaN, Inf
-  static float sanitize(float x) {
-    if (std::isnan(x) || std::isinf(x))
-      return 0.0f;
-    if (std::fabs(x) < 1.0e-15f)
-      return 0.0f;
-    return std::max(-1.5f, std::min(1.5f, x));
-  }
+  const char *getName() const override { return "Reverb"; }
 
+private:
   void resetPositions() {
     preDelayPos_ = 0;
     inAP1Pos_ = 0;
@@ -225,10 +218,8 @@ private:
     return buf[pos];
   }
 
-  float sr_ = 48000.0f;
   float decay_ = 0.7f;
   float damping_ = 0.5f;
-  float mix_ = 0.3f;
   int preDelaySamples_ = 0;
 
   float damp1State_ = 0.0f;
