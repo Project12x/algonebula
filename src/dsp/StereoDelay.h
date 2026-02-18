@@ -30,9 +30,11 @@ public:
 
   void setFeedback(float fb) {
     feedback_ = std::max(0.0f, std::min(0.95f, fb));
+    clampTotalFeedback();
   }
   void setCrossFeed(float cf) {
     crossFeed_ = std::max(0.0f, std::min(0.5f, cf));
+    clampTotalFeedback();
   }
   void setMix(float m) { mix_ = std::max(0.0f, std::min(1.0f, m)); }
 
@@ -41,9 +43,16 @@ public:
     float wetL = readDelay(bufL_, delaySamples_);
     float wetR = readDelay(bufR_, delaySamples_);
 
-    // Write with cross-feedback
-    bufL_[writePos_] = inL + wetL * feedback_ + wetR * crossFeed_;
-    bufR_[writePos_] = inR + wetR * feedback_ + wetL * crossFeed_;
+    // Write with cross-feedback (total feedback clamped < 1.0)
+    float writeL = inL + wetL * feedback_ + wetR * crossFeed_;
+    float writeR = inR + wetR * feedback_ + wetL * crossFeed_;
+
+    // Anti-denormal + hard clamp
+    writeL = sanitize(writeL);
+    writeR = sanitize(writeR);
+
+    bufL_[writePos_] = writeL;
+    bufR_[writePos_] = writeR;
 
     // Advance write position
     writePos_ = (writePos_ + 1) % maxDelaySamples_;
@@ -61,6 +70,28 @@ public:
 
 private:
   static constexpr float kMaxDelaySec = 2.0f;
+  static constexpr float kMaxTotalFeedback = 0.92f; // Must be < 1.0
+
+  // Ensure feedback + crossfeed don't exceed safe limit
+  void clampTotalFeedback() {
+    float total = feedback_ + crossFeed_;
+    if (total > kMaxTotalFeedback) {
+      float scale = kMaxTotalFeedback / total;
+      feedback_ *= scale;
+      crossFeed_ *= scale;
+    }
+  }
+
+  // Kill denormals, NaN, Inf, and clamp to safe range
+  static float sanitize(float x) {
+    if (std::isnan(x) || std::isinf(x))
+      return 0.0f;
+    // Kill denormals
+    if (std::fabs(x) < 1.0e-15f)
+      return 0.0f;
+    // Hard clamp to prevent runaway
+    return std::max(-4.0f, std::min(4.0f, x));
+  }
 
   float readDelay(const std::vector<float> &buf, float delaySamples) const {
     float pos = static_cast<float>(writePos_) - delaySamples;

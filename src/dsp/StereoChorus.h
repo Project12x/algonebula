@@ -45,9 +45,9 @@ public:
     float wetL = readDelay(delayBufL_, delayL);
     float wetR = readDelay(delayBufR_, delayR);
 
-    // Write to delay with feedback
-    delayBufL_[writePos_] = inL + wetL * feedback_;
-    delayBufR_[writePos_] = inR + wetR * feedback_;
+    // Write to delay with feedback (sanitize to prevent denormal/NaN)
+    delayBufL_[writePos_] = sanitize(inL + wetL * feedback_);
+    delayBufR_[writePos_] = sanitize(inR + wetR * feedback_);
 
     // Advance write position
     writePos_ = (writePos_ + 1) % kMaxDelay;
@@ -75,6 +75,15 @@ public:
 
 private:
   static constexpr int kMaxDelay = 2048;
+
+  // Kill denormals, NaN, Inf
+  static float sanitize(float x) {
+    if (std::isnan(x) || std::isinf(x))
+      return 0.0f;
+    if (std::fabs(x) < 1.0e-15f)
+      return 0.0f;
+    return std::max(-4.0f, std::min(4.0f, x));
+  }
 
   float triangleLfo(float phase) const {
     // Phase 0..1 -> triangle -1..1

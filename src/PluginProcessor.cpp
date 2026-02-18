@@ -886,6 +886,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         R = rR;
       }
 
+      // Final NaN/denormal guard
+      auto sanitizeOut = [](float x) -> float {
+        if (std::isnan(x) || std::isinf(x))
+          return 0.0f;
+        if (std::fabs(x) < 1.0e-15f)
+          return 0.0f;
+        return std::max(-4.0f, std::min(4.0f, x));
+      };
+      L = sanitizeOut(L);
+      R = sanitizeOut(R);
+
       buffer.setSample(0, sample, L);
       buffer.setSample(1, sample, R);
     }

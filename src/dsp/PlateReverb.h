@@ -155,6 +155,15 @@ public:
   }
 
 private:
+  // Kill denormals, NaN, Inf
+  static float sanitize(float x) {
+    if (std::isnan(x) || std::isinf(x))
+      return 0.0f;
+    if (std::fabs(x) < 1.0e-15f)
+      return 0.0f;
+    return std::max(-4.0f, std::min(4.0f, x));
+  }
+
   void resetPositions() {
     preDelayPos_ = 0;
     inAP1Pos_ = 0;
@@ -180,7 +189,7 @@ private:
 
   // Circular buffer write and advance
   void writeBuf(std::vector<float> &buf, int &writePos, float val) {
-    buf[writePos] = val;
+    buf[writePos] = sanitize(val);
     writePos = (writePos + 1) % static_cast<int>(buf.size());
   }
 
@@ -188,7 +197,7 @@ private:
   float allpass(std::vector<float> &buf, int &pos, float input, float coeff) {
     float delayed = buf[pos];
     float output = -input * coeff + delayed;
-    buf[pos] = input + delayed * coeff;
+    buf[pos] = sanitize(input + delayed * coeff);
     pos = (pos + 1) % static_cast<int>(buf.size());
     return output;
   }
@@ -202,7 +211,7 @@ private:
 
   // One-pole lowpass damping filter
   float dampLp(float input, float &state, float damp) const {
-    state = input * (1.0f - damp) + state * damp;
+    state = sanitize(input * (1.0f - damp) + state * damp);
     return state;
   }
 
