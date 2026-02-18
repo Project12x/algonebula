@@ -29,7 +29,7 @@ public:
   }
 
   void setFeedback(float fb) {
-    feedback_ = std::max(0.0f, std::min(0.95f, fb));
+    feedback_ = std::max(0.0f, std::min(0.75f, fb));
     clampTotalFeedback();
   }
   void setCrossFeed(float cf) {

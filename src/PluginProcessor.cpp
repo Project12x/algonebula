@@ -242,7 +242,7 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::NormalisableRange<float>(0.01f, 2.0f, 0.01f), 0.3f));
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("delayFeedback", 1), "Delay Feedback",
-      juce::NormalisableRange<float>(0.0f, 0.95f, 0.01f), 0.4f));
+      juce::NormalisableRange<float>(0.0f, 0.75f, 0.01f), 0.4f));
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("delayMix", 1), "Delay Mix",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
@@ -293,6 +293,17 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   chorus.init(static_cast<float>(sampleRate));
   delay.init(static_cast<float>(sampleRate));
   reverb.init(static_cast<float>(sampleRate));
+
+  // Initialize safety limiter (brick-wall, last in chain)
+  {
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
+    spec.numChannels = 2;
+    safetyLimiter.prepare(spec);
+    safetyLimiter.setThreshold(-1.0f); // -1 dB ceiling
+    safetyLimiter.setRelease(5.0f);    // 5ms release
+  }
 
   // Initialize engine with default seed
   engine->randomize(42, 0.3f);
@@ -886,20 +897,16 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         R = rR;
       }
 
-      // Final NaN/denormal guard
-      auto sanitizeOut = [](float x) -> float {
-        if (std::isnan(x) || std::isinf(x))
-          return 0.0f;
-        if (std::fabs(x) < 1.0e-15f)
-          return 0.0f;
-        return std::max(-4.0f, std::min(4.0f, x));
-      };
-      L = sanitizeOut(L);
-      R = sanitizeOut(R);
-
       buffer.setSample(0, sample, L);
       buffer.setSample(1, sample, R);
     }
+  }
+
+  // --- Safety limiter (brick-wall, always active) ---
+  {
+    juce::dsp::AudioBlock<float> block(buffer);
+    juce::dsp::ProcessContextReplacing<float> ctx(block);
+    safetyLimiter.process(ctx);
   }
 
   // Update grid snapshot for GL/UI thread (simple copy, no lock)

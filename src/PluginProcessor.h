@@ -162,6 +162,9 @@ private:
   StereoDelay delay;
   PlateReverb reverb;
 
+  // --- Safety limiter (brick-wall, last in chain) ---
+  juce::dsp::Limiter<float> safetyLimiter;
+
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};
   double currentSampleRate = 44100.0;
