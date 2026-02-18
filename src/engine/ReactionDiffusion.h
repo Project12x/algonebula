@@ -3,7 +3,7 @@
 #include "CellularEngine.h"
 #include "Grid.h"
 #include <cstdint>
-#include <cstring>
+#include <vector>
 
 /// Reaction-Diffusion: Gray-Scott model on a discrete grid.
 /// Internal: two float concentration fields (A, B).
@@ -34,8 +34,8 @@ public:
   }
 
   // --- Native data access for visualizer ---
-  const float *getFieldA() const { return fieldA; }
-  const float *getFieldB() const { return fieldB; }
+  const float *getFieldA() const { return fieldA.data(); }
+  const float *getFieldB() const { return fieldB.data(); }
 
 private:
   void projectToGrid(); // Quantize floats to uint8 grid
@@ -50,10 +50,10 @@ private:
 
   static constexpr int kMax = Grid::kMaxRows * Grid::kMaxCols;
 
-  float fieldA[kMax] = {};
-  float fieldB[kMax] = {};
-  float scratchA[kMax] = {};
-  float scratchB[kMax] = {};
+  std::vector<float> fieldA;
+  std::vector<float> fieldB;
+  std::vector<float> scratchA;
+  std::vector<float> scratchB;
 
   Grid grid;
   uint64_t generation = 0;

@@ -22,6 +22,10 @@
 #include "engine/ScaleQuantizer.h"
 #include "engine/SynthVoice.h"
 
+#include "dsp/PlateReverb.h"
+#include "dsp/StereoChorus.h"
+#include "dsp/StereoDelay.h"
+
 // Forward declarations
 class NebulaLookAndFeel;
 
@@ -124,7 +128,7 @@ private:
   Microtuning tuning;
 
   // --- Synth Voices ---
-  static constexpr int kMaxVoices = 8;
+  static constexpr int kMaxVoices = 64;
   SynthVoice voices[kMaxVoices];
   int roundRobinIndex = 0;
   bool stepTriggeredThisBlock = false;
@@ -153,6 +157,11 @@ public:
   float getDensityGain() const { return densityGain; }
 
 private:
+  // --- DSP Effects ---
+  StereoChorus chorus;
+  StereoDelay delay;
+  PlateReverb reverb;
+
   // --- Performance monitoring ---
   std::atomic<float> cpuLoadPercent{0.0f};
   double currentSampleRate = 44100.0;

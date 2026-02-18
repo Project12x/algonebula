@@ -81,7 +81,7 @@ AlgoNebulaProcessor::createParameterLayout() {
 
   // --- Voices ---
   layout.add(std::make_unique<juce::AudioParameterInt>(
-      juce::ParameterID("voiceCount", 1), "Voice Count", 1, 8, 3));
+      juce::ParameterID("voiceCount", 1), "Voice Count", 1, 64, 3));
 
   // --- Waveshape ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -193,7 +193,9 @@ AlgoNebulaProcessor::createParameterLayout() {
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID("gridSize", 1), "Grid Size",
       juce::StringArray{"Small (8x12)", "Medium (12x16)", "Large (16x24)",
-                        "XL (24x32)"},
+                        "XL (24x32)", "XXL (32x48)", "Epic (48x64)",
+                        "Massive (64x96)", "Huge (128x128)",
+                        "Experimental (256x256)"},
       1)); // default to Medium
 
   // --- Freeze ---
@@ -217,6 +219,44 @@ AlgoNebulaProcessor::createParameterLayout() {
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID("pitchGravity", 1), "Pitch Gravity",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.3f));
+
+  // --- Stereo Width ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("stereoWidth", 1), "Stereo Width",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+
+  // --- Chorus ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("chorusRate", 1), "Chorus Rate",
+      juce::NormalisableRange<float>(0.1f, 5.0f, 0.01f), 0.5f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("chorusDepth", 1), "Chorus Depth",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.4f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("chorusMix", 1), "Chorus Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Delay ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("delayTime", 1), "Delay Time",
+      juce::NormalisableRange<float>(0.01f, 2.0f, 0.01f), 0.3f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("delayFeedback", 1), "Delay Feedback",
+      juce::NormalisableRange<float>(0.0f, 0.95f, 0.01f), 0.4f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("delayMix", 1), "Delay Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+  // --- Reverb ---
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("reverbDecay", 1), "Reverb Decay",
+      juce::NormalisableRange<float>(0.0f, 0.99f, 0.01f), 0.7f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("reverbDamping", 1), "Reverb Damping",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+  layout.add(std::make_unique<juce::AudioParameterFloat>(
+      juce::ParameterID("reverbMix", 1), "Reverb Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
   return layout;
 }
@@ -248,6 +288,11 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
       apvts.getRawParameterValue("subLevel")->load());
   smoothDensityGain.reset(sampleRate, 0.05); // slower ramp for density
   smoothDensityGain.setCurrentAndTargetValue(1.0f);
+
+  // Initialize DSP effects
+  chorus.init(static_cast<float>(sampleRate));
+  delay.init(static_cast<float>(sampleRate));
+  reverb.init(static_cast<float>(sampleRate));
 
   // Initialize engine with default seed
   engine->randomize(42, 0.3f);
@@ -330,8 +375,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       static_cast<int>(apvts.getRawParameterValue("gridSize")->load());
 
   // Grid size lookup: rows, cols
-  static constexpr int kGridSizes[][2] = {
-      {8, 12}, {12, 16}, {16, 24}, {24, 32}};
+  static constexpr int kGridSizes[][2] = {{8, 12},  {12, 16},   {16, 24},
+                                          {24, 32}, {32, 48},   {48, 64},
+                                          {64, 96}, {128, 128}, {256, 256}};
   int gridRows = kGridSizes[gridSizeIdx][0];
   int gridCols = kGridSizes[gridSizeIdx][1];
 
@@ -726,6 +772,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
               double pan = (grid.getCols() > 1)
                                ? (2.0 * col / (grid.getCols() - 1) - 1.0)
                                : 0.0;
+              pan *= static_cast<double>(
+                  apvts.getRawParameterValue("stereoWidth")->load());
               voices[voiceIdx].setPan(pan);
 
               voices[voiceIdx].setGridPosition(row, col);
@@ -788,6 +836,58 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     } else if (buffer.getNumChannels() >= 1) {
       buffer.setSample(0, sample,
                        static_cast<float>((mixL + mixR) * 0.5 * dGain));
+    }
+  }
+
+  // --- Read effect parameters ---
+  const float chorusMixP = apvts.getRawParameterValue("chorusMix")->load();
+  const float delayMixP = apvts.getRawParameterValue("delayMix")->load();
+  const float reverbMixP = apvts.getRawParameterValue("reverbMix")->load();
+
+  // Configure effects (parameter reads, not per-sample)
+  chorus.setRate(apvts.getRawParameterValue("chorusRate")->load());
+  chorus.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
+  chorus.setMix(chorusMixP);
+  delay.setTime(apvts.getRawParameterValue("delayTime")->load());
+  delay.setFeedback(apvts.getRawParameterValue("delayFeedback")->load());
+  delay.setMix(delayMixP);
+  reverb.setDecay(apvts.getRawParameterValue("reverbDecay")->load());
+  reverb.setDamping(apvts.getRawParameterValue("reverbDamping")->load());
+  reverb.setMix(reverbMixP);
+
+  // --- Apply effects chain per-sample (chorus -> delay -> reverb) ---
+  if (buffer.getNumChannels() >= 2 &&
+      (chorusMixP > 0.0f || delayMixP > 0.0f || reverbMixP > 0.0f)) {
+    for (int sample = 0; sample < numSamples; ++sample) {
+      float L = buffer.getSample(0, sample);
+      float R = buffer.getSample(1, sample);
+
+      // Chorus
+      if (chorusMixP > 0.0f) {
+        float cL, cR;
+        chorus.process(L, R, cL, cR);
+        L = cL;
+        R = cR;
+      }
+
+      // Delay
+      if (delayMixP > 0.0f) {
+        float dL, dR;
+        delay.process(L, R, dL, dR);
+        L = dL;
+        R = dR;
+      }
+
+      // Reverb
+      if (reverbMixP > 0.0f) {
+        float rL, rR;
+        reverb.process(L, R, rL, rR);
+        L = rL;
+        R = rR;
+      }
+
+      buffer.setSample(0, sample, L);
+      buffer.setSample(1, sample, R);
     }
   }
 

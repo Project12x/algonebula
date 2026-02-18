@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -10,15 +11,16 @@
 /// swaps a snapshot for the GL thread to read.
 class Grid {
 public:
-  static constexpr int kMaxRows = 32;
-  static constexpr int kMaxCols = 64;
+  static constexpr int kMaxRows = 512;
+  static constexpr int kMaxCols = 512;
   static constexpr int kMaxCells = kMaxRows * kMaxCols;
 
-  Grid() { clear(); }
+  Grid() : cells(kMaxCells, 0), prevCells(kMaxCells, 0), ages(kMaxCells, 0) {}
 
-  Grid(int rows, int cols) : numRows(rows), numCols(cols) {
+  Grid(int rows, int cols)
+      : numRows(rows), numCols(cols), cells(kMaxCells, 0),
+        prevCells(kMaxCells, 0), ages(kMaxCells, 0) {
     clampDimensions();
-    clear();
   }
 
   // --- Dimensions ---
@@ -58,15 +60,15 @@ public:
 
   // --- Bulk Operations ---
   void clear() {
-    std::memset(cells, 0, sizeof(cells));
-    std::memset(ages, 0, sizeof(ages));
+    std::fill(cells.begin(), cells.end(), 0);
+    std::fill(ages.begin(), ages.end(), 0);
   }
 
   void copyFrom(const Grid &other) {
     numRows = other.numRows;
     numCols = other.numCols;
-    std::memcpy(cells, other.cells, sizeof(cells));
-    std::memcpy(ages, other.ages, sizeof(ages));
+    cells = other.cells;
+    ages = other.ages;
   }
 
   /// Count total alive cells (state > 0).
@@ -111,7 +113,7 @@ public:
 
   // --- Event Detection (birth/death tracking) ---
   /// Call before engine step to snapshot current state.
-  void snapshotPrev() { std::memcpy(prevCells, cells, sizeof(prevCells)); }
+  void snapshotPrev() { prevCells = cells; }
 
   /// Cell was dead last step, alive now.
   bool wasBorn(int row, int col) const {
@@ -146,8 +148,8 @@ private:
   int numRows = 12;
   int numCols = 16;
 
-  // Fixed-size arrays at max capacity (no runtime allocation).
-  uint8_t cells[kMaxCells] = {};
-  uint8_t prevCells[kMaxCells] = {}; // Previous generation for event detection
-  uint16_t ages[kMaxCells] = {};
+  // Heap-allocated arrays sized to max capacity (safe for large grids).
+  std::vector<uint8_t> cells;
+  std::vector<uint8_t> prevCells; // Previous generation for event detection
+  std::vector<uint16_t> ages;
 };

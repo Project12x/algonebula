@@ -1,0 +1,131 @@
+=== Algo Nebula Phase 2+3+4 Tests ===
+
+[Grid]
+  Grid: default dimensions... PASS
+  Grid: custom dimensions... PASS
+  Grid: dimension clamping... PASS
+  Grid: set/get cell... PASS
+  Grid: toroidal wrapping... PASS
+  Grid: age tracking... PASS
+  Grid: countAlive... PASS
+  Grid: equality operator... PASS
+  Grid: copyFrom... PASS
+
+[Game of Life -- Correctness]
+  GoL: Blinker oscillates (period 2)... PASS
+  GoL: Block still life (stable)... PASS
+  GoL: Beehive still life (stable)... PASS
+  GoL: Glider translates (period 4, +1,+1)... PASS
+  GoL: generation counter... PASS
+  GoL: cell age increments on survival... PASS
+  GoL: deterministic seeding... PASS
+  GoL: density approximation... PASS
+  GoL: zero density produces empty grid... PASS
+  GoL: full density produces full grid... PASS
+
+[Game of Life -- Rule Variants]
+  GoL: HighLife rule preset (B36/S23)... PASS
+  GoL: Seeds rule preset (B2/S — no survival)... PASS
+  GoL: Ambient rule preset (B3/S2345 — high survival)... PASS
+  GoL: toroidal edge wrapping... PASS
+
+[CellEditQueue]
+  CellEditQueue: push/pop... PASS
+  CellEditQueue: full queue returns false... PASS
+  CellEditQueue: drainInto grid... PASS
+  CellEditQueue: bounded drain (maxCount)... PASS
+
+[Phase 2 Mutation Tests]
+  Mutation: B3->B2 breaks Blinker... PASS
+  Mutation: no survival (Seeds) kills Block... PASS
+  Mutation: dying cell resets age to 0... PASS
+
+[ScaleQuantizer]
+  ScaleQuantizer: all 15 scales have correct intervals... PASS
+  ScaleQuantizer: 12 root transpositions... PASS
+  ScaleQuantizer: output is always a valid scale degree... PASS
+  ScaleQuantizer: MIDI notes clamped to 0-127... PASS
+  ScaleQuantizer: pentatonic scales... PASS
+
+[Microtuning]
+  Microtuning: 12-TET A4=440, A3=220... PASS
+  Microtuning: Just Intonation P5 = 3/2 ratio... PASS
+  Microtuning: Pythagorean P5=3/2, M3=81/64... PASS
+  Microtuning: A4 reference 432Hz... PASS
+  Microtuning: all 3 systems A4 = ref pitch... PASS
+  Microtuning: 12-TET cents offset = 0... PASS
+
+[ClockDivider]
+  ClockDivider: 120BPM quarter = 2 steps/sec... PASS
+  ClockDivider: all divisions produce correct step counts... PASS
+  ClockDivider: 67% swing produces uneven step spacing... PASS
+  ClockDivider: 50% swing = even spacing... PASS
+  ClockDivider: sample-accurate for buffer sizes... PASS
+
+[Phase 3 Integration]
+  Integration: clock drives GoL stepping (2 steps/sec at 120BPM)... PASS
+  Integration: quantizer maps GoL cells to valid scale degrees... PASS
+  Integration: transport pause freezes GoL, resume continues... PASS
+
+[Phase 3 Mutation Tests]
+  Mutation: Dorian interval change detected... PASS
+  Mutation: Just P5 offset by 1 cent detected... PASS
+  Mutation: clock >= vs > changes step count... PASS
+
+[PolyBLEP Oscillator]
+  Sine vs std::sin reference... PASS
+  Saw harmonics present... PASS
+  Square wave output range... PASS
+  Pulse width=0.5 is symmetric... PASS
+  PolyBLEP saw has less aliasing energy than naive... PASS
+  All shapes output in [-2.1, 2.1]... PASS
+  440Hz sine zero-crossing accuracy... PASS
+
+[AHDSR Envelope]
+  Attack ramp timing... PASS
+  Hold then Decay to Sustain... PASS
+  Release from sustain to zero... PASS
+  Note-off during attack transitions to release... PASS
+  Retrigger from current level (no snap to zero)... PASS
+
+[SVFilter]
+  LP -3dB at cutoff, attenuation above... PASS
+  HP passes above cutoff, attenuates below... PASS
+  Resonance boosts energy at cutoff... PASS
+  Filter stable at max resonance... PASS
+
+[SynthVoice]
+  Full voice chain produces non-zero output... PASS
+  8 voices summed stay bounded... PASS
+  Sub-oscillator tracks voice frequency... PASS
+
+[Phase 4 Mutation Tests]
+  Mutation: PolyBLEP presence changes saw output... PASS
+  Mutation: non-zero attack takes multiple samples... PASS
+  Mutation: changing cutoff changes filter response... PASS
+  Mutation: sub -2oct is half freq of -1oct... PASS
+
+[CA Engine Tests]
+  BriansBrain: step produces activity... PASS
+  CyclicCA: step advances generation... PASS
+  ReactionDiffusion: float fields and grid projection... PASS
+  LeniaEngine: continuous state and step... PASS
+  ParticleSwarm: particles deposit trails... PASS
+  BrownianField: walkers deposit energy... PASS
+  Engine type identification via getType()... PASS
+
+[Anti-Cacophony Tests]
+  isConsonant - all 12 intervals... PASS
+  isConsonantWithAll - 0/1/3 active notes... PASS
+  quantizeWeighted - gravity=1.0 snaps to chord tones... PASS
+  Grid::getDensity - empty/full/partial... PASS
+
+[Phase 6 Factory Patterns & Freeze]
+  FactoryPattern: Glider places 5 cells correctly... PASS
+  FactoryPattern: all 5 patterns produce alive cells... PASS
+  Freeze: grid unchanged after GoL step when frozen... PASS
+
+=== Results ===
+  Passed: 89
+  Failed: 0
+All tests passed.

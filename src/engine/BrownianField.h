@@ -3,7 +3,7 @@
 #include "CellularEngine.h"
 #include "Grid.h"
 #include <cstdint>
-#include <cstring>
+#include <vector>
 
 /// Brownian Field: random walkers depositing energy on a decaying field.
 /// Internal: walker positions (float) + energy field (float).
@@ -42,7 +42,7 @@ public:
 
   // --- Native data access for visualizer ---
   const Walker *getWalkers() const { return walkers; }
-  const float *getEnergyField() const { return energy; }
+  const float *getEnergyField() const { return energy.data(); }
 
 private:
   void projectToGrid();
@@ -53,7 +53,7 @@ private:
   static constexpr float kThreshold = 0.1f;
 
   Walker walkers[kNumWalkers] = {};
-  float energy[kMax] = {};
+  std::vector<float> energy;
   uint64_t rng = 12345;
 
   Grid grid;

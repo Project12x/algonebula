@@ -3,7 +3,7 @@
 #include "CellularEngine.h"
 #include "Grid.h"
 #include <cstdint>
-#include <cstring>
+#include <vector>
 
 /// Particle Swarm: pool of particles with flocking behavior.
 /// Internal: float positions + velocities for each particle.
@@ -43,7 +43,7 @@ public:
 
   // --- Native data access for visualizer ---
   const Particle *getParticles() const { return particles; }
-  const float *getTrailField() const { return trail; }
+  const float *getTrailField() const { return trail.data(); }
 
 private:
   void projectToGrid();
@@ -55,7 +55,7 @@ private:
   static constexpr float kCenterWeight = 0.01f;
 
   Particle particles[kNumParticles] = {};
-  float trail[kMax] = {};
+  std::vector<float> trail;
   uint64_t rng = 12345;
 
   Grid grid;

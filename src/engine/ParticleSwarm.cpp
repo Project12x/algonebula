@@ -1,4 +1,5 @@
 #include "ParticleSwarm.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -14,7 +15,8 @@ float randFloat(uint64_t &state) {
 }
 } // namespace
 
-ParticleSwarm::ParticleSwarm(int r, int c) : grid(r, c), rows(r), cols(c) {}
+ParticleSwarm::ParticleSwarm(int r, int c)
+    : trail(Grid::kMaxCells, 0.0f), grid(r, c), rows(r), cols(c) {}
 
 void ParticleSwarm::step() {
   // Compute center of mass
@@ -121,7 +123,7 @@ void ParticleSwarm::randomize(uint64_t seed, float density) {
   rng = seed ? seed : 1;
   (void)density;
 
-  std::memset(trail, 0, sizeof(trail));
+  std::fill(trail.begin(), trail.end(), 0.0f);
 
   for (int i = 0; i < kNumParticles; ++i) {
     particles[i].x = randFloat(rng) * cols;
@@ -138,7 +140,7 @@ void ParticleSwarm::randomizeSymmetric(uint64_t seed, float density) {
   rng = seed ? seed : 1;
   (void)density;
 
-  std::memset(trail, 0, sizeof(trail));
+  std::fill(trail.begin(), trail.end(), 0.0f);
 
   // Place particles symmetrically (4 quadrants)
   int perQuadrant = kNumParticles / 4;
@@ -160,7 +162,7 @@ void ParticleSwarm::randomizeSymmetric(uint64_t seed, float density) {
 
 void ParticleSwarm::clear() {
   generation = 0;
-  std::memset(trail, 0, sizeof(trail));
+  std::fill(trail.begin(), trail.end(), 0.0f);
   for (int i = 0; i < kNumParticles; ++i)
     particles[i] = {};
   grid.clear();

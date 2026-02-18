@@ -1,4 +1,5 @@
 #include "ReactionDiffusion.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -11,13 +12,9 @@ uint64_t xorshift64(uint64_t &state) {
 } // namespace
 
 ReactionDiffusion::ReactionDiffusion(int r, int c)
-    : grid(r, c), rows(r), cols(c) {
-  // Initialize field A to 1.0 everywhere
-  for (int i = 0; i < rows * cols; ++i) {
-    fieldA[i] = 1.0f;
-    fieldB[i] = 0.0f;
-  }
-}
+    : fieldA(Grid::kMaxCells, 1.0f), fieldB(Grid::kMaxCells, 0.0f),
+      scratchA(Grid::kMaxCells, 0.0f), scratchB(Grid::kMaxCells, 0.0f),
+      grid(r, c), rows(r), cols(c) {}
 
 void ReactionDiffusion::step() {
   // 5-point Laplacian stencil with toroidal wrapping
@@ -58,8 +55,8 @@ void ReactionDiffusion::step() {
   }
 
   // Swap
-  std::memcpy(fieldA, scratchA, sizeof(float) * Grid::kMaxCells);
-  std::memcpy(fieldB, scratchB, sizeof(float) * Grid::kMaxCells);
+  std::copy(scratchA.begin(), scratchA.end(), fieldA.begin());
+  std::copy(scratchB.begin(), scratchB.end(), fieldB.begin());
 
   projectToGrid();
   ++generation;
@@ -86,10 +83,8 @@ void ReactionDiffusion::randomize(uint64_t seed, float density) {
   uint64_t state = seed ? seed : 1;
 
   // Fill A=1 everywhere, seed B in random spots
-  for (int i = 0; i < Grid::kMaxCells; ++i) {
-    fieldA[i] = 1.0f;
-    fieldB[i] = 0.0f;
-  }
+  std::fill(fieldA.begin(), fieldA.end(), 1.0f);
+  std::fill(fieldB.begin(), fieldB.end(), 0.0f);
 
   for (int r = 0; r < rows; ++r) {
     for (int c = 0; c < cols; ++c) {
@@ -109,10 +104,8 @@ void ReactionDiffusion::randomizeSymmetric(uint64_t seed, float density) {
   generation = 0;
   uint64_t state = seed ? seed : 1;
 
-  for (int i = 0; i < Grid::kMaxCells; ++i) {
-    fieldA[i] = 1.0f;
-    fieldB[i] = 0.0f;
-  }
+  std::fill(fieldA.begin(), fieldA.end(), 1.0f);
+  std::fill(fieldB.begin(), fieldB.end(), 0.0f);
 
   const int halfR = (rows + 1) / 2;
   const int halfC = (cols + 1) / 2;
@@ -141,9 +134,7 @@ void ReactionDiffusion::randomizeSymmetric(uint64_t seed, float density) {
 
 void ReactionDiffusion::clear() {
   generation = 0;
-  for (int i = 0; i < Grid::kMaxCells; ++i) {
-    fieldA[i] = 1.0f;
-    fieldB[i] = 0.0f;
-  }
+  std::fill(fieldA.begin(), fieldA.end(), 1.0f);
+  std::fill(fieldB.begin(), fieldB.end(), 0.0f);
   grid.clear();
 }

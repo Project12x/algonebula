@@ -3,6 +3,24 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.0] - 2026-02-17
+
+### Added
+
+- Maximum grid size increased to 512x512 (was 64x96)
+- New grid size options: Huge (128x128), Experimental (256x256)
+- Maximum voice count increased to 64 (was 8)
+- 3 DSP effects: StereoChorus, StereoDelay, PlateReverb (header-only, adapted from DaisySP/Dattorro)
+- 10 new APVTS parameters: stereoWidth, chorusRate/Depth/Mix, delayTime/Feedback/Mix, reverbDecay/Damping/Mix
+- Effects chain in processBlock: chorus -> delay -> reverb (bypassed when mix=0)
+- Grid-position stereo panning scaled by configurable stereoWidth parameter
+- Effects initialized in prepareToPlay with proper sample rate
+
+### Changed
+
+- Grid, ReactionDiffusion, LeniaEngine, ParticleSwarm, BrownianField converted from fixed-size arrays to std::vector (heap allocation prevents stack overflow at large grid sizes)
+- Replaced memset/memcpy with std::fill/std::copy in all engine classes
+
 ## [0.6.0] - 2026-02-17
 
 ### Added

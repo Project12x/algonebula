@@ -1,4 +1,5 @@
 #include "LeniaEngine.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -10,7 +11,9 @@ uint64_t xorshift64(uint64_t &state) {
 }
 } // namespace
 
-LeniaEngine::LeniaEngine(int r, int c) : grid(r, c), rows(r), cols(c) {
+LeniaEngine::LeniaEngine(int r, int c)
+    : stateField(Grid::kMaxCells, 0.0f), scratch(Grid::kMaxCells, 0.0f),
+      grid(r, c), rows(r), cols(c) {
   precomputeKernel();
 }
 
@@ -66,7 +69,7 @@ void LeniaEngine::step() {
     }
   }
 
-  std::memcpy(stateField, scratch, sizeof(float) * Grid::kMaxCells);
+  std::copy(scratch.begin(), scratch.end(), stateField.begin());
   projectToGrid();
   ++generation;
 }
@@ -91,7 +94,7 @@ void LeniaEngine::randomize(uint64_t seed, float density) {
   generation = 0;
   uint64_t state = seed ? seed : 1;
 
-  std::memset(stateField, 0, sizeof(stateField));
+  std::fill(stateField.begin(), stateField.end(), 0.0f);
 
   for (int r = 0; r < rows; ++r) {
     for (int c = 0; c < cols; ++c) {
@@ -108,7 +111,7 @@ void LeniaEngine::randomize(uint64_t seed, float density) {
 void LeniaEngine::randomizeSymmetric(uint64_t seed, float density) {
   generation = 0;
   uint64_t state = seed ? seed : 1;
-  std::memset(stateField, 0, sizeof(stateField));
+  std::fill(stateField.begin(), stateField.end(), 0.0f);
 
   const int halfR = (rows + 1) / 2;
   const int halfC = (cols + 1) / 2;
@@ -133,6 +136,6 @@ void LeniaEngine::randomizeSymmetric(uint64_t seed, float density) {
 
 void LeniaEngine::clear() {
   generation = 0;
-  std::memset(stateField, 0, sizeof(stateField));
+  std::fill(stateField.begin(), stateField.end(), 0.0f);
   grid.clear();
 }

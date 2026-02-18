@@ -3,7 +3,7 @@
 #include "CellularEngine.h"
 #include "Grid.h"
 #include <cstdint>
-#include <cstring>
+#include <vector>
 
 /// Lenia: Continuous-neighborhood cellular automaton.
 /// Internal: float state field (0.0-1.0) with wide bell-curve kernel
@@ -34,7 +34,7 @@ public:
   }
 
   // --- Native data access for visualizer ---
-  const float *getStateField() const { return stateField; }
+  const float *getStateField() const { return stateField.data(); }
 
 private:
   void projectToGrid();
@@ -50,8 +50,8 @@ private:
   static constexpr int kMax = Grid::kMaxRows * Grid::kMaxCols;
   static constexpr int kKernelSize = (2 * kRadius + 1) * (2 * kRadius + 1);
 
-  float stateField[kMax] = {};
-  float scratch[kMax] = {};
+  std::vector<float> stateField;
+  std::vector<float> scratch;
   float kernel[kKernelSize] = {};
   float kernelSum = 0.0f;
 

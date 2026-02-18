@@ -1,4 +1,5 @@
 #include "BrownianField.h"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -14,7 +15,8 @@ float randFloat(uint64_t &state) {
 }
 } // namespace
 
-BrownianField::BrownianField(int r, int c) : grid(r, c), rows(r), cols(c) {}
+BrownianField::BrownianField(int r, int c)
+    : energy(Grid::kMaxCells, 0.0f), grid(r, c), rows(r), cols(c) {}
 
 void BrownianField::step() {
   // Move walkers (random walk)
@@ -80,7 +82,7 @@ void BrownianField::randomize(uint64_t seed, float density) {
   rng = seed ? seed : 1;
   (void)density;
 
-  std::memset(energy, 0, sizeof(energy));
+  std::fill(energy.begin(), energy.end(), 0.0f);
 
   for (int i = 0; i < kNumWalkers; ++i) {
     walkers[i].x = randFloat(rng) * cols;
@@ -95,7 +97,7 @@ void BrownianField::randomizeSymmetric(uint64_t seed, float density) {
   rng = seed ? seed : 1;
   (void)density;
 
-  std::memset(energy, 0, sizeof(energy));
+  std::fill(energy.begin(), energy.end(), 0.0f);
 
   // Place walkers symmetrically
   int perQuadrant = kNumWalkers / 4;
@@ -116,7 +118,7 @@ void BrownianField::randomizeSymmetric(uint64_t seed, float density) {
 
 void BrownianField::clear() {
   generation = 0;
-  std::memset(energy, 0, sizeof(energy));
+  std::fill(energy.begin(), energy.end(), 0.0f);
   for (int i = 0; i < kNumWalkers; ++i)
     walkers[i] = {};
   grid.clear();
