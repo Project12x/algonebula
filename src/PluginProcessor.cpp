@@ -192,10 +192,10 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Grid Resolution ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID("gridSize", 1), "Grid Size",
-      juce::StringArray{"Small (8x12)", "Medium (12x16)", "Large (16x24)",
-                        "XL (24x32)", "XXL (32x48)", "Epic (48x64)",
-                        "Massive (64x96)", "Huge (128x128)",
-                        "Experimental (256x256)"},
+      juce::StringArray{
+          "Small (8x12)", "Medium (12x16)", "Large (16x24)", "XL (24x32)",
+          "XXL (32x48)", "Epic (48x64)", "Massive (64x96)", "Huge (128x128)",
+          "Experimental (256x256)", "Extreme (512x512)", "Insane (1024x1024)"},
       1)); // default to Medium
 
   // --- Freeze ---
@@ -523,9 +523,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       static_cast<int>(apvts.getRawParameterValue("gridSize")->load());
 
   // Grid size lookup: rows, cols
-  static constexpr int kGridSizes[][2] = {{8, 12},  {12, 16},   {16, 24},
-                                          {24, 32}, {32, 48},   {48, 64},
-                                          {64, 96}, {128, 128}, {256, 256}};
+  static constexpr int kGridSizes[][2] = {
+      {8, 12},  {12, 16},   {16, 24},   {24, 32},   {32, 48},    {48, 64},
+      {64, 96}, {128, 128}, {256, 256}, {512, 512}, {1024, 1024}};
   int gridRows = kGridSizes[gridSizeIdx][0];
   int gridCols = kGridSizes[gridSizeIdx][1];
 
