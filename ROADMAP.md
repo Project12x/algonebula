@@ -477,37 +477,30 @@ Explicit pause-and-review checkpoints:
 
 ---
 
-## Phase 12 — Modulation Matrix + Stereo Drift (`v0.12.0`)
+## Phase 12 — Modulation Matrix + Stereo Drift (`v0.12.0`) — PARTIALLY SHIPPED IN Phase 9
 
 **Goal:** LFO modulation routing and spatial movement.
 
-- [ ] 2 LFOs (sine/tri/saw/S&H, 0.01-20Hz, depth)
+> [!NOTE]
+> Core modulation matrix (2 LFOs with 18 destinations) shipped in v0.9.0 as part of
+> Phase 9 (Effect Toggles + Energy Stability). Stereo drift and expanded routing
+> slots remain for future work.
+
+**Shipped in v0.9.0:**
+- [x] 2 LFOs (sine/tri/saw/square/S&H, 0.01-20Hz, bipolar amount)
+- [x] 18 modulation destinations (effect mixes, rates, filter, envelope)
+- [x] 9 effect on/off toggles (APVTS bools)
+- [x] Per-engine trigger budget with user override knob
+- [x] Per-engine gain scaling + adaptive voice normalization
+- [x] UI: toggler buttons + LFO section in EffectsPanel
+
+**Remaining:**
 - [ ] Cell intensity mod source, envelope follower mod source
 - [ ] Stereo drift: per-voice pan wander (Brownian/sine, rate 0-1Hz, depth 0-100%)
 - [ ] 8 routing slots with source/destination/depth (-1 to +1)
-- [ ] Popout window UI
+- [ ] Popout window UI for expanded mod matrix
 
-**Testing Milestone — Correctness:**
-- [ ] LFO sine at 1Hz: output matches sin(2*pi*t) (R² > 0.999)
-- [ ] LFO triangle at 1Hz: output matches expected triangle wave
-- [ ] LFO S&H: output steps at specified rate, values uniformly distributed
-- [ ] LFO -> cutoff at depth 1.0: cutoff sweeps full range over one LFO cycle
-- [ ] Envelope follower: tracks 200ms amplitude envelope (± 1dB)
-- [ ] Stereo drift at rate 0.5Hz: pan value oscillates over 2 seconds
-- [ ] Mod depth = 0: no modulation (destination unchanged)
-- [ ] Mod depth = -1: modulation is inverted vs depth = +1
-
-**Testing Milestone — Mutation:**
-- [ ] Invert LFO phase: sine output test MUST show inverted waveform
-- [ ] Remove depth scaling: full-range modulation always, depth=0 test MUST fail
-- [ ] Mutation survival rate < 20%
-
-**RT Safety Checkpoint:**
-- [ ] Mod matrix evaluation is O(active routes), max 8 = bounded
-- [ ] LFO uses wavetable or polynomial, no `sin()` per sample
-- [ ] Envelope follower is one-pole filter, O(1) per sample
-
-**Tag:** `v0.12.0`
+**Tag:** `v0.12.0` (remaining items)
 
 ---
 

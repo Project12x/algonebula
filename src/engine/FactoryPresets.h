@@ -60,7 +60,17 @@ inline std::vector<FactoryPreset> getFactoryPresets() {
         {"stereoWidth", 0.5f},
         {"chorusMix", 0.0f},
         {"delayMix", 0.0f},
-        {"reverbMix", 0.0f}}},
+        {"reverbMix", 0.0f},
+        {"chorusOn", 0.0f},
+        {"delayOn", 0.0f},
+        {"reverbOn", 0.0f},
+        {"phaserOn", 0.0f},
+        {"flangerOn", 0.0f},
+        {"bitcrushOn", 0.0f},
+        {"tapeOn", 0.0f},
+        {"shimmerOn", 0.0f},
+        {"pingPongOn", 0.0f},
+        {"triggerBudget", 0.0f}}},
 
       // --- 1: Reversed Violin ---
       {"Reversed Violin",

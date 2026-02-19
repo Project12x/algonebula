@@ -31,6 +31,9 @@
 #include "dsp/StereoPhaser.h"
 #include "dsp/TapeSaturation.h"
 
+// Phase 9 ModLFO
+#include "dsp/ModLFO.h"
+
 // --- Test Helpers ---
 static int testsPassed = 0;
 static int testsFailed = 0;
@@ -2214,6 +2217,123 @@ void testEffectChainBypass() {
 }
 
 // ============================================================================
+// Phase 9 — ModLFO, Trigger Budget, Gain Scale
+// ============================================================================
+
+void testModLFOShapes() {
+  TEST("ModLFO: all 5 shapes produce bounded output [-1, +1]");
+  ModLFO lfo;
+  lfo.init(44100.0f);
+  lfo.setRate(2.0f);
+
+  for (int shape = 0; shape < 5; ++shape) {
+    lfo.setShape(shape);
+    float minVal = 2.0f, maxVal = -2.0f;
+    for (int i = 0; i < 44100; ++i) {
+      float v = lfo.tick();
+      if (v < minVal)
+        minVal = v;
+      if (v > maxVal)
+        maxVal = v;
+    }
+    ASSERT_TRUE(minVal >= -1.0f);
+    ASSERT_TRUE(maxVal <= 1.0f);
+    // Shapes should cover reasonable range (at least +/- 0.5)
+    ASSERT_TRUE(maxVal - minVal > 0.5f);
+  }
+  PASS();
+}
+
+void testModLFORateAccuracy() {
+  TEST("ModLFO: 1Hz sine completes one cycle in ~44100 samples");
+  ModLFO lfo;
+  lfo.init(44100.0f);
+  lfo.setRate(1.0f);
+  lfo.setShape(0); // sine
+
+  // Count zero crossings (positive direction) over 2 seconds
+  int zeroCrossings = 0;
+  float prev = lfo.tick();
+  for (int i = 1; i < 88200; ++i) {
+    float cur = lfo.tick();
+    if (prev <= 0.0f && cur > 0.0f)
+      ++zeroCrossings;
+    prev = cur;
+  }
+  // 1Hz over 2 seconds = 2 positive zero crossings
+  ASSERT_TRUE(zeroCrossings == 2);
+  PASS();
+}
+
+void testModLFOTickBlock() {
+  TEST("ModLFO: tickBlock returns valid mid-block value");
+  ModLFO lfo;
+  lfo.init(44100.0f);
+  lfo.setRate(5.0f);
+  lfo.setShape(0); // sine
+
+  float val = lfo.tickBlock(512);
+  ASSERT_TRUE(val >= -1.0f && val <= 1.0f);
+  PASS();
+}
+
+void testEngineTriggerBudgets() {
+  TEST("Engine trigger budgets: each engine returns correct default");
+
+  GameOfLife gol(32, 32);
+  ASSERT_TRUE(gol.getDefaultTriggerBudget() == 32);
+  ASSERT_NEAR(gol.getGainScale(), 1.0f, 0.001f);
+
+  BriansBrain bb(32, 32);
+  ASSERT_TRUE(bb.getDefaultTriggerBudget() == 32);
+  ASSERT_NEAR(bb.getGainScale(), 1.0f, 0.001f);
+
+  CyclicCA cyc(32, 32);
+  ASSERT_TRUE(cyc.getDefaultTriggerBudget() == 5);
+  ASSERT_NEAR(cyc.getGainScale(), 0.5f, 0.001f);
+
+  ReactionDiffusion rd(32, 32);
+  ASSERT_TRUE(rd.getDefaultTriggerBudget() == 4);
+  ASSERT_NEAR(rd.getGainScale(), 0.4f, 0.001f);
+
+  LeniaEngine len(32, 32);
+  ASSERT_TRUE(len.getDefaultTriggerBudget() == 4);
+  ASSERT_NEAR(len.getGainScale(), 0.4f, 0.001f);
+
+  ParticleSwarm ps(32, 32);
+  ASSERT_TRUE(ps.getDefaultTriggerBudget() == 4);
+  ASSERT_NEAR(ps.getGainScale(), 0.5f, 0.001f);
+
+  BrownianField bf(32, 32);
+  ASSERT_TRUE(bf.getDefaultTriggerBudget() == 6);
+  ASSERT_NEAR(bf.getGainScale(), 0.5f, 0.001f);
+
+  PASS();
+}
+
+void testEffectToggleBypass() {
+  TEST("Effect setBypass: bypassed effect returns input unchanged");
+  StereoChorus chorus;
+  chorus.init(44100.0f);
+  chorus.setMix(0.5f);
+  chorus.setRate(2.0f);
+  chorus.setDepth(1.0f);
+  chorus.setBypass(true);
+
+  // Feed signal through bypassed effect
+  float outL = 0.0f, outR = 0.0f;
+  chorus.processWithMix(0.42f, -0.31f, outL, outR);
+  ASSERT_NEAR(outL, 0.42f, 0.0001f);
+  ASSERT_NEAR(outR, -0.31f, 0.0001f);
+
+  chorus.processWithMix(-0.8f, 0.6f, outL, outR);
+  ASSERT_NEAR(outL, -0.8f, 0.0001f);
+  ASSERT_NEAR(outR, 0.6f, 0.0001f);
+
+  PASS();
+}
+
+// ============================================================================
 int main() {
   std::cout << "=== Algo Nebula Phase 2+3+4 Tests ===" << std::endl;
 
@@ -2375,6 +2495,14 @@ int main() {
   testSafetyProcessorBrickwall();
   testEffectChainParallel();
   testEffectChainBypass();
+
+  // Phase 9 -- ModLFO, Trigger Budget, Gain Scale
+  std::cout << "\n[Phase 9 ModLFO & Engine Stability]" << std::endl;
+  testModLFOShapes();
+  testModLFORateAccuracy();
+  testModLFOTickBlock();
+  testEngineTriggerBudgets();
+  testEffectToggleBypass();
 
   // Summary
   std::cout << "\n=== Results ===" << std::endl;
