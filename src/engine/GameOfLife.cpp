@@ -61,6 +61,12 @@ void GameOfLife::step() {
   const int rows = grid.getRows();
   const int cols = grid.getCols();
 
+  // Use bitwise-packed step for large grids
+  if (rows * cols >= kBitwiseThreshold) {
+    stepBitwise();
+    return;
+  }
+
   scratch.resize(rows, cols);
 
   for (int r = 0; r < rows; ++r) {
@@ -93,6 +99,84 @@ void GameOfLife::step() {
   }
 
   // Swap scratch into grid (memcpy, no allocation)
+  grid.copyFrom(scratch);
+  ++generation;
+}
+
+void GameOfLife::stepBitwise() {
+  const int rows = grid.getRows();
+  const int cols = grid.getCols();
+
+  // Pack current grid into bitwise representation
+  BitwiseGrid packed;
+  packed.resize(rows, cols);
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      if (grid.getCell(r, c) > 0)
+        packed.setCell(r, c, true);
+    }
+  }
+
+  BitwiseGrid next;
+  next.resize(rows, cols);
+
+  // Process each word (64 cells at a time)
+  int wordsPerRow = packed.getWordsPerRow();
+  for (int r = 0; r < rows; ++r) {
+    // Toroidal row indices
+    int rAbove = (r - 1 + rows) % rows;
+    int rBelow = (r + 1) % rows;
+    const uint64_t *rowAbove = packed.rowData(rAbove);
+    const uint64_t *rowSame = packed.rowData(r);
+    const uint64_t *rowBelow = packed.rowData(rBelow);
+
+    for (int w = 0; w < wordsPerRow; ++w) {
+      uint8_t counts[64];
+      BitwiseGrid::countNeighbors64(rowAbove, rowSame, rowBelow, w, wordsPerRow,
+                                    cols, counts);
+
+      // Apply rules for each bit position
+      int bitsInWord = cols - w * 64;
+      if (bitsInWord > 64)
+        bitsInWord = 64;
+
+      for (int b = 0; b < bitsInWord; ++b) {
+        int c = w * 64 + b;
+        bool alive = packed.getCell(r, c);
+        int n = counts[b];
+
+        if (!alive && (birthRule & (1 << n))) {
+          next.setCell(r, c, true);
+        } else if (alive && (survivalRule & (1 << n))) {
+          next.setCell(r, c, true);
+        }
+        // else: stays dead (already 0)
+      }
+    }
+  }
+
+  // Unpack back to Grid, updating ages
+  scratch.resize(rows, cols);
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      bool wasAlive = grid.getCell(r, c) > 0;
+      bool isAlive = next.getCell(r, c);
+
+      if (isAlive) {
+        scratch.setCell(r, c, 1);
+        if (wasAlive) {
+          uint16_t age = grid.getAge(r, c);
+          scratch.setAge(r, c, age < UINT16_MAX ? age + 1 : age);
+        } else {
+          scratch.setAge(r, c, 1);
+        }
+      } else {
+        scratch.setCell(r, c, 0);
+        scratch.setAge(r, c, 0);
+      }
+    }
+  }
+
   grid.copyFrom(scratch);
   ++generation;
 }

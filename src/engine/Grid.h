@@ -11,8 +11,8 @@
 /// swaps a snapshot for the GL thread to read.
 class Grid {
 public:
-  static constexpr int kMaxRows = 1024;
-  static constexpr int kMaxCols = 1024;
+  static constexpr int kMaxRows = 1280;
+  static constexpr int kMaxCols = 1280;
   static constexpr int kMaxCells = kMaxRows * kMaxCols;
 
   Grid() : cells(kMaxCells, 0), prevCells(kMaxCells, 0), ages(kMaxCells, 0) {}

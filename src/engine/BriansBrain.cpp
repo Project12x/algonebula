@@ -1,4 +1,5 @@
 #include "BriansBrain.h"
+#include "BitwiseGrid.h"
 
 namespace {
 uint64_t xorshift64(uint64_t &state) {
@@ -15,6 +16,69 @@ BriansBrain::BriansBrain(int rows, int cols)
 void BriansBrain::step() {
   const int rows = grid.getRows();
   const int cols = grid.getCols();
+
+  // For large grids, use BitwiseGrid to accelerate neighbor counting.
+  // Only "On" (state 1) cells matter for neighbor counting.
+  static constexpr int kBitwiseThreshold = 128 * 128;
+  if (rows * cols >= kBitwiseThreshold) {
+    // Pack "On" cells into bitwise grid
+    BitwiseGrid onCells;
+    onCells.resize(rows, cols);
+    for (int r = 0; r < rows; ++r) {
+      for (int c = 0; c < cols; ++c) {
+        if (grid.getCell(r, c) == 1)
+          onCells.setCell(r, c, true);
+      }
+    }
+
+    scratch.resize(rows, cols);
+    int wordsPerRow = onCells.getWordsPerRow();
+
+    for (int r = 0; r < rows; ++r) {
+      int rAbove = (r - 1 + rows) % rows;
+      int rBelow = (r + 1) % rows;
+      const uint64_t *rowAbove = onCells.rowData(rAbove);
+      const uint64_t *rowSame = onCells.rowData(r);
+      const uint64_t *rowBelow = onCells.rowData(rBelow);
+
+      for (int w = 0; w < wordsPerRow; ++w) {
+        uint8_t counts[64];
+        BitwiseGrid::countNeighbors64(rowAbove, rowSame, rowBelow, w,
+                                      wordsPerRow, cols, counts);
+
+        int bitsInWord = cols - w * 64;
+        if (bitsInWord > 64)
+          bitsInWord = 64;
+
+        for (int b = 0; b < bitsInWord; ++b) {
+          int c = w * 64 + b;
+          uint8_t current = grid.getCell(r, c);
+
+          if (current == 0) {
+            if (counts[b] == 2) {
+              scratch.setCell(r, c, 1);
+              scratch.setAge(r, c, 1);
+            } else {
+              scratch.setCell(r, c, 0);
+              scratch.setAge(r, c, 0);
+            }
+          } else if (current == 1) {
+            scratch.setCell(r, c, 2);
+            scratch.setAge(r, c, grid.getAge(r, c) + 1);
+          } else {
+            scratch.setCell(r, c, 0);
+            scratch.setAge(r, c, 0);
+          }
+        }
+      }
+    }
+
+    grid.copyFrom(scratch);
+    ++generation;
+    return;
+  }
+
+  // Small grid: original loop
   scratch.resize(rows, cols);
 
   for (int r = 0; r < rows; ++r) {

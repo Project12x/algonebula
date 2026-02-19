@@ -1,8 +1,10 @@
 #pragma once
 
+#include "BitwiseGrid.h"
 #include "CellularEngine.h"
 #include "Grid.h"
 #include <cstdint>
+
 
 /// Game of Life implementation with 5 rule presets, toroidal wrapping,
 /// cell age tracking, and seeded random initialization.
@@ -49,6 +51,12 @@ public:
 private:
   /// Count live neighbors (toroidal) for cell at (row, col).
   int countNeighbors(int row, int col) const;
+
+  /// Bitwise-packed step for large grids (>= 128x128)
+  void stepBitwise();
+
+  /// Threshold for using bitwise step
+  static constexpr int kBitwiseThreshold = 128 * 128;
 
   /// Apply birth/survival rules.
   /// birthRule and survivalRule are bitmasks: bit N set = N neighbors triggers.

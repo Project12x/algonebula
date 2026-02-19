@@ -103,9 +103,9 @@ void testGridCustomDimensions() {
 
 void testGridClamping() {
   TEST("Grid: dimension clamping");
-  Grid g(0, 2000);
+  Grid g(0, 3000);
   ASSERT_EQ(g.getRows(), 1);
-  ASSERT_EQ(g.getCols(), Grid::kMaxCols); // 1024
+  ASSERT_EQ(g.getCols(), Grid::kMaxCols); // 1280
   PASS();
 }
 

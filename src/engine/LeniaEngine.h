@@ -2,13 +2,16 @@
 
 #include "CellularEngine.h"
 #include "Grid.h"
+#include <complex>
 #include <cstdint>
 #include <vector>
+
 
 /// Lenia: Continuous-neighborhood cellular automaton.
 /// Internal: float state field (0.0-1.0) with wide bell-curve kernel
 /// convolution (radius 3) and Gaussian growth function.
 /// Produces smooth organic blob patterns that move and morph.
+/// Uses FFT-based convolution (via pocketfft) for large grids.
 class LeniaEngine final : public CellularEngine {
 public:
   explicit LeniaEngine(int rows = 12, int cols = 16);
@@ -41,6 +44,9 @@ public:
 private:
   void projectToGrid();
   void precomputeKernel();
+  void stepDirect(); // Direct convolution for small grids
+  void stepFFT();    // FFT convolution for large grids
+  void prepareFFT(); // One-time FFT kernel setup
 
   // Lenia parameters
   static constexpr int kRadius = 3;
@@ -49,6 +55,9 @@ private:
   static constexpr float kDt = 0.1f;      // Time step
   static constexpr float kThreshold = 0.1f;
 
+  // FFT threshold: use FFT when grid has >= this many cells
+  static constexpr int kFFTThreshold = 64 * 64;
+
   static constexpr int kMax = Grid::kMaxRows * Grid::kMaxCols;
   static constexpr int kKernelSize = (2 * kRadius + 1) * (2 * kRadius + 1);
 
@@ -56,6 +65,12 @@ private:
   std::vector<float> scratch;
   float kernel[kKernelSize] = {};
   float kernelSum = 0.0f;
+
+  // FFT buffers (allocated on first FFT step)
+  bool fftPrepared = false;
+  std::vector<std::complex<float>> kernelFFT;
+  std::vector<std::complex<float>> fieldFFT;
+  std::vector<float> fftReal; // Contiguous real buffer for FFT
 
   Grid grid;
   uint64_t generation = 0;
