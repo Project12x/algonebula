@@ -26,6 +26,14 @@ CPMAddPackage(
 
 # NOTE: Gin deferred to Phase 4+
 
+# ghostsun -- WebGPU GPU compute + visualization (Phase 13)
+include(FetchContent)
+FetchContent_Declare(ghostsun
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ghostsun"
+)
+set(GHOSTSUN_BUILD_VIEW OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(ghostsun)
+
 # melatonin_blur -- download only, add as JUCE module manually
 CPMAddPackage(
     NAME melatonin_blur
@@ -133,6 +141,7 @@ target_link_libraries(AlgoNebula
         juce::juce_gui_basics
         juce::juce_dsp
         melatonin_blur
+        ghostsun_render
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
