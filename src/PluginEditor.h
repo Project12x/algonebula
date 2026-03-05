@@ -151,5 +151,10 @@ private:
   juce::TextButton fxBtn{"FX"};
   std::unique_ptr<EffectsWindow> effectsWindow;
 
+  // --- GPU toggle ---
+  juce::TextButton gpuAccelBtn{"GPU"};
+  std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
+      gpuAccelAttach;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaEditor)
 };

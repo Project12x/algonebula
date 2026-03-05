@@ -270,6 +270,22 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   fxBtn.setTooltip("Open the effects panel (chorus, delay, reverb, stereo)");
   addAndMakeVisible(fxBtn);
 
+  // --- GPU Acceleration toggle ---
+  gpuAccelBtn.setClickingTogglesState(true);
+  gpuAccelBtn.setColour(juce::TextButton::buttonColourId,
+                        NebulaColours::bg_surface);
+  gpuAccelBtn.setColour(juce::TextButton::buttonOnColourId,
+                        juce::Colour(0xFF00CC88));
+  gpuAccelBtn.setColour(juce::TextButton::textColourOffId,
+                        NebulaColours::text_normal);
+  gpuAccelBtn.setColour(juce::TextButton::textColourOnId,
+                        NebulaColours::text_bright);
+  gpuAccelBtn.setTooltip(
+      "GPU Acceleration: offload CA simulation to GPU compute shaders");
+  gpuAccelAttach =
+      std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+          processor.getAPVTS(), "gpuAccel", gpuAccelBtn);
+  addAndMakeVisible(gpuAccelBtn);
   // --- Factory pattern selector ---
   patternLabel.setText("Pattern", juce::dontSendNotification);
   patternLabel.setFont(nebulaLnF.getMonoFont(10.0f));
@@ -451,6 +467,10 @@ void AlgoNebulaEditor::resized() {
 
     // FX popout button
     fxBtn.setBounds(transportRow.removeFromLeft(36).reduced(0, 1));
+    transportRow.removeFromLeft(4);
+
+    // GPU toggle
+    gpuAccelBtn.setBounds(transportRow.removeFromLeft(40).reduced(0, 1));
 
     // Pattern combo
     patternLabel.setBounds(transportRow.removeFromLeft(50));
