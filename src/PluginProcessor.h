@@ -35,6 +35,8 @@
 #include "dsp/StereoPhaser.h"
 #include "dsp/TapeSaturation.h"
 
+#include "gpu/GpuComputeManager.h"
+
 // Forward declarations
 class NebulaLookAndFeel;
 
@@ -89,6 +91,10 @@ public:
   std::atomic<bool> clearRequested{false};
   std::atomic<bool> reseedSymmetricRequested{false};
   std::atomic<int> loadPatternRequested{-1}; // -1 = none, 0+ = pattern index
+
+  // --- GPU compute (opt-in, default OFF) ---
+  GpuComputeManager &getGpuComputeManager() { return gpuCompute; }
+  bool isGpuActive() const { return gpuActive.load(std::memory_order_relaxed); }
 
   // --- Seed access ---
   uint64_t getSeed() const {
@@ -195,6 +201,10 @@ private:
   std::atomic<float> cpuLoadPercent{0.0f};
   double currentSampleRate = 44100.0;
   int currentBlockSize = 512;
+
+  // --- GPU compute ---
+  GpuComputeManager gpuCompute;
+  std::atomic<bool> gpuActive{false};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaProcessor)
 };

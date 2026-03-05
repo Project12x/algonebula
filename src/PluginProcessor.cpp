@@ -373,6 +373,10 @@ AlgoNebulaProcessor::createParameterLayout() {
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID("lfo2Dest", 1), "LFO 2 Dest", 0, 17, 0));
 
+  // --- GPU Acceleration (opt-in, default OFF) ---
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("gpuAccel", 1), "GPU Acceleration", false));
+
   return layout;
 }
 
@@ -530,6 +534,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   int gridRows = kGridSizes[gridSizeIdx][0];
   int gridCols = kGridSizes[gridSizeIdx][1];
 
+  // --- Read GPU acceleration toggle ---
+  bool wantGpu = apvts.getRawParameterValue("gpuAccel")->load() > 0.5f;
+
   if (algoIdx != lastAlgorithmIdx || gridSizeIdx != lastGridSizeIdx) {
     lastAlgorithmIdx = algoIdx;
     lastGridSizeIdx = gridSizeIdx;
@@ -539,6 +546,24 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     // Release all voices when switching engine
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
+
+    // Propagate engine type to GPU adapter (if active)
+    if (wantGpu) {
+      auto engineType = static_cast<EngineType>(algoIdx);
+      gpuCompute.setEngine(engineType, gridRows, gridCols);
+      gpuCompute.start();
+    }
+  }
+
+  // Toggle GPU on/off
+  if (wantGpu && !gpuActive.load(std::memory_order_relaxed)) {
+    auto engineType = static_cast<EngineType>(algoIdx);
+    gpuCompute.setEngine(engineType, gridRows, gridCols);
+    gpuCompute.start();
+    gpuActive.store(true, std::memory_order_relaxed);
+  } else if (!wantGpu && gpuActive.load(std::memory_order_relaxed)) {
+    gpuCompute.stop();
+    gpuActive.store(false, std::memory_order_relaxed);
   }
 
   // Clear output buffer
@@ -595,11 +620,24 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int v = 0; v < kMaxVoices; ++v)
     voices[v].setFrozen(isFrozen);
 
-  for (int i = 0; i < numSamples; ++i) {
-    if (clock.tick() && isRunning && !isFrozen) {
-      engine->getGridMutable().snapshotPrev();
-      engine->step();
-      stepTriggeredThisBlock = true;
+  // GPU path: simulation runs on GPU timer thread; CPU path: step on clock tick
+  if (gpuActive.load(std::memory_order_relaxed)) {
+    // GPU is stepping the simulation via GpuComputeManager timer.
+    for (int i = 0; i < numSamples; ++i) {
+      if (clock.tick() && isRunning && !isFrozen) {
+        // Copy GPU bridge grid snapshot for voice triggering
+        gridSnapshot = gpuCompute.getBridge().getAudioGrid();
+        stepTriggeredThisBlock = true;
+      }
+    }
+  } else {
+    // CPU path: original stepping
+    for (int i = 0; i < numSamples; ++i) {
+      if (clock.tick() && isRunning && !isFrozen) {
+        engine->getGridMutable().snapshotPrev();
+        engine->step();
+        stepTriggeredThisBlock = true;
+      }
     }
   }
 
@@ -701,7 +739,10 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
     // --- Density-driven dynamics ---
-    const auto &grid = engine->getGrid();
+    // Use GPU bridge grid when active, else CPU engine grid
+    const auto &grid = gpuActive.load(std::memory_order_relaxed)
+                           ? gridSnapshot
+                           : engine->getGrid();
     const int totalCells = grid.getRows() * grid.getCols();
     float density = (totalCells > 0)
                         ? static_cast<float>(grid.countAlive()) / totalCells
