@@ -97,6 +97,9 @@ target_sources(AlgoNebula PRIVATE
     src/engine/LeniaEngine.cpp
     src/engine/ParticleSwarm.cpp
     src/engine/BrownianField.cpp
+    src/gpu/GridComputeAdapter.cpp
+    src/gpu/EngineAdapters.cpp
+    src/gpu/GpuComputeManager.cpp
 )
 
 # --- Include Directories ---

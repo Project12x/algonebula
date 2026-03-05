@@ -5,7 +5,7 @@
 // GPU readback delivers float[] state -> UI thread calls updateFromGpu()
 // -> audio thread reads getAudioGrid() each processBlock.
 
-#include "Grid.h"
+#include "engine/Grid.h"
 #include <atomic>
 #include <cstdint>
 #include <vector>
