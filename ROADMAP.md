@@ -504,28 +504,47 @@ Explicit pause-and-review checkpoints:
 
 ---
 
-## Phase 13 — OpenGL 2D + 3D Visualization (`v0.13.0`)
+## Phase 13 — GPU Compute + WebGPU Visualization (`v0.13.0`)
 
-**Goal:** Real-time grid visualization with multiple render modes.
+**Goal:** GPU-accelerated CA engines and 3D visualization using `ghostsun_render`.
 
-- [ ] `AlgoVisualizerComponent` (backend-agnostic interface for future WebGPU)
-- [ ] 2D grid mode: cell colors by age gradient, playhead glow, note highlights
-- [ ] 3D terrain mode: height-mapped mesh, orbit camera
-- [ ] Wireframe mode: same mesh, line-rendered
-- [ ] GLSL shaders (grid/terrain vertex + fragment)
+> [!NOTE]
+> Uses the in-house `ghostsun_render` library (WebGPU/Dawn). GPU is **opt-in**
+> via an APVTS toggle (`gpuAccel`, default OFF) for iGPU/low-end compatibility.
+> CPU engines remain the default and fallback.
+
+### Phase 13a — CMake + Build Integration
+- [ ] FetchContent `ghostsun` (local path for dev, git URL for release)
+- [ ] `target_link_libraries(AlgoNebula PRIVATE ghostsun_render)`
+- [ ] Verify clean build with Dawn linked
+
+### Phase 13b — GPU Compute Adapters
+- [ ] WGSL compute shaders: `gol.wgsl`, `brians_brain.wgsl`, `cyclic_ca.wgsl`, `reaction_diffusion.wgsl`, `particle_swarm.wgsl`, `brownian_field.wgsl`
+- [ ] Lenia: use existing `lenia.wgsl` via `FFTLeniaEngine` or `SeparableLeniaEngine` (TBD)
+- [ ] `ComputeSimulation` subclass per engine (adapter pattern)
+- [ ] `GpuGridBridge`: lock-free GPU readback → audio thread grid snapshot
+- [ ] APVTS `gpuAccel` toggle (bool, default OFF)
+
+### Phase 13c — Processor Integration
+- [ ] `processBlock` reads from `GpuGridBridge` when GPU active
+- [ ] CPU `CellularEngine::step()` skipped when GPU active
+- [ ] Stagnation detection and auto-reseed work with GPU grid
+- [ ] Equivalence tests: GPU vs CPU produce matching CA evolution
+
+### Phase 13d — 3D Visualization
+- [ ] `PluginVisualizerView` replaces/augments `GridComponent`
+- [ ] VolumeRenderer for continuous engines (Lenia, R-D) — 3D volumetric
+- [ ] 2D grid texture rendering for binary CAs (GoL, Brian's Brain)
+- [ ] Audio-reactive visuals via `writeFFT()`/`writeRMS()` bridge
+- [ ] Camera orbit, color palettes (Nebula default)
 
 **Testing Milestone:**
-- [ ] Headless: GL context creation doesn't crash (graceful fallback if no GPU)
-- [ ] **Manual: 2D grid cells light up on algorithm step**
-- [ ] **Manual: Playhead glow moves across grid at correct tempo**
-- [ ] **Manual: 3D terrain height corresponds to cell values**
-- [ ] **Manual: Camera orbit is smooth, no Z-fighting or clipping**
-- [ ] **Manual: Mode switching (2D/3D/Wire) is instant, no flicker**
-
-**RT Safety Checkpoint:**
-- [ ] GL rendering on its own thread, never blocks audio
-- [ ] Grid data read from back buffer only (no audio thread contention)
-- [ ] GL frame rate independent of audio buffer size
+- [ ] All 107+ tests still pass (CPU path unchanged)
+- [ ] GPU equivalence: GoL 100-step match between CPU and GPU
+- [ ] **Manual: Toggle gpuAccel ON, verify 3D visualization renders**
+- [ ] **Manual: 1280x1280 grid at 60 FPS with GPU, no audio dropouts**
+- [ ] **Manual: Toggle gpuAccel OFF, verify CPU fallback works**
+- [ ] **Manual: iGPU system: GPU toggle ON gracefully falls back if unavailable**
 
 **Tag:** `v0.13.0`
 
@@ -657,4 +676,4 @@ Explicit pause-and-review checkpoints:
 - Markov Chain, Predator-Prey, Neural CA, DLA, L-System Grid
 
 ### v3.1 — Platform Evolution
-- WebGPU renderer, MPE support, network sync, mod matrix expansion
+- MPE support, network sync, mod matrix expansion
