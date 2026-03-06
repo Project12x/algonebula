@@ -47,11 +47,19 @@ bool GpuComputeManager::setEngine(EngineType type, int rows, int cols) {
 
   bridge_.resize(rows, cols);
 
-  if (!ensureDevice())
+  if (!ensureDevice()) {
+    fprintf(stderr, "[GpuComputeManager] Failed to initialize GPU device\n");
     return false;
+  }
 
   auto device = ghostsun::GpuDevice::getInstance().getDevice();
-  return simulation_->init(device);
+  if (!simulation_->init(device)) {
+    fprintf(stderr,
+            "[GpuComputeManager] Shader/pipeline init failed for engine %d\n",
+            static_cast<int>(type));
+    return false;
+  }
+  return true;
 }
 
 bool GpuComputeManager::ensureDevice() {

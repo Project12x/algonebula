@@ -24,11 +24,13 @@ public:
   bool setEngine(EngineType type, int rows, int cols);
 
   /// Start the GPU simulation loop (timer-driven, ~60 FPS).
-  void start() {
+  /// Returns false if device/simulation not ready.
+  bool start() {
     if (!simulation_ || !deviceReady_)
-      return;
+      return false;
     running_ = true;
     startTimer(16); // ~60 FPS
+    return true;
   }
 
   /// Stop the simulation loop and release GPU resources.

@@ -555,12 +555,13 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
-  // Toggle GPU on/off
+  // Toggle GPU on/off (only activate if init+start succeed)
   if (wantGpu && !gpuActive.load(std::memory_order_relaxed)) {
     auto engineType = static_cast<EngineType>(algoIdx);
-    gpuCompute.setEngine(engineType, gridRows, gridCols);
-    gpuCompute.start();
-    gpuActive.store(true, std::memory_order_relaxed);
+    if (gpuCompute.setEngine(engineType, gridRows, gridCols) &&
+        gpuCompute.start()) {
+      gpuActive.store(true, std::memory_order_relaxed);
+    }
   } else if (!wantGpu && gpuActive.load(std::memory_order_relaxed)) {
     gpuCompute.stop();
     gpuActive.store(false, std::memory_order_relaxed);
@@ -625,8 +626,12 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     // GPU is stepping the simulation via GpuComputeManager timer.
     for (int i = 0; i < numSamples; ++i) {
       if (clock.tick() && isRunning && !isFrozen) {
-        // Copy GPU bridge grid snapshot for voice triggering
-        gridSnapshot = gpuCompute.getBridge().getAudioGrid();
+        // Use GPU bridge grid if available, else fall back to CPU grid
+        if (gpuCompute.getBridge().hasData()) {
+          gridSnapshot = gpuCompute.getBridge().getAudioGrid();
+        } else {
+          gridSnapshot = engine->getGrid();
+        }
         stepTriggeredThisBlock = true;
       }
     }
@@ -643,7 +648,10 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Auto-reseed: if alive count unchanged for 8 steps, inject cells
   if (stepTriggeredThisBlock) {
-    int currentAlive = engine->getGrid().countAlive();
+    // Use GPU snapshot for stagnation check when GPU active
+    int currentAlive = gpuActive.load(std::memory_order_relaxed)
+                           ? gridSnapshot.countAlive()
+                           : engine->getGrid().countAlive();
     if (currentAlive == lastAliveCount) {
       ++stagnationCounter;
     } else {
