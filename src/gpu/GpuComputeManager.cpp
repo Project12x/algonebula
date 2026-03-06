@@ -145,6 +145,8 @@ void GpuComputeManager::timerCallback() {
   auto device = gpu.getDevice();
   auto queue = gpu.getQueue();
 
+  auto t0 = std::chrono::steady_clock::now();
+
   // Create command encoder
   WGPUCommandEncoderDescriptor encDesc = {};
   encDesc.label = toSV("gpu_compute_step");
@@ -198,6 +200,11 @@ void GpuComputeManager::timerCallback() {
 
     wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, req.size, cbInfo);
   }
+
+  auto t1 = std::chrono::steady_clock::now();
+  float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+  float prev = gpuStepMs_.load(std::memory_order_relaxed);
+  gpuStepMs_.store(prev * 0.9f + ms * 0.1f, std::memory_order_relaxed);
 
   // Poll the device to process mapAsync callbacks
 #ifdef WEBGPU_BACKEND_WGPU

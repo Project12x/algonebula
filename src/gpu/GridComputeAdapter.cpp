@@ -67,6 +67,7 @@ bool GridComputeAdapter::init(WGPUDevice device) {
 
   // Get bind group layout from auto-layout pipeline
   bgl_ = wgpuComputePipelineGetBindGroupLayout(pipeline_, 0);
+  fprintf(stderr, "[GridComputeAdapter] bgl_=%p\n", (void*)bgl_);
   wgpuShaderModuleRelease(shaderModule);
 
   // Create buffers
@@ -75,11 +76,13 @@ bool GridComputeAdapter::init(WGPUDevice device) {
                   WGPUBufferUsage_CopySrc;
   stateBuffers_[0] = createBuffer(device, bufSize, bufUsage);
   stateBuffers_[1] = createBuffer(device, bufSize, bufUsage);
+  fprintf(stderr, "[GridComputeAdapter] stateBuffers=[%p, %p] size=%u\n", (void*)stateBuffers_[0], (void*)stateBuffers_[1], (unsigned)bufSize);
 
   // Params buffer
   paramsBuffer_ =
       createBuffer(device, getParamsSize(),
                    WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+  fprintf(stderr, "[GridComputeAdapter] paramsBuffer=%p size=%u\n", (void*)paramsBuffer_, (unsigned)getParamsSize());
 
   // Extra buffers
   for (uint32_t i = 0; i < extraBufferCount(); ++i) {
@@ -121,6 +124,7 @@ bool GridComputeAdapter::init(WGPUDevice device) {
     bgDesc.entryCount = totalBindings;
     bgDesc.entries = entries.data();
     bindGroups_[dir] = wgpuDeviceCreateBindGroup(device, &bgDesc);
+    fprintf(stderr, "[GridComputeAdapter] bindGroup[%d]=%p (entries=%u)\n", dir, (void*)bindGroups_[dir], totalBindings);
   }
 
   // Let subclass init extra buffers
@@ -128,6 +132,7 @@ bool GridComputeAdapter::init(WGPUDevice device) {
   initExtraBuffers(device, queue);
 
   initialized_ = true;
+  fprintf(stderr, "[GridComputeAdapter] init complete: rows=%d cols=%d\n", rows_, cols_);
   seed();
   return true;
 }

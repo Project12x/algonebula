@@ -116,6 +116,7 @@ private:
 
   // --- Status ---
   juce::Label cpuMeterLabel;
+  juce::Label gpuMeterLabel;
 
   // --- MIDI Keyboard ---
   juce::MidiKeyboardComponent midiKeyboard;

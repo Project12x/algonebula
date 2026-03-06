@@ -8,6 +8,8 @@
 #include "engine/CellularEngine.h"
 #include <ghostsun_render/ComputeSimulation.h>
 #include <juce_events/juce_events.h>
+#include <atomic>
+#include <chrono>
 #include <memory>
 
 class GpuComputeManager : private juce::Timer {
@@ -42,6 +44,9 @@ public:
 
   /// Whether the GPU simulation is actively running.
   bool isRunning() const { return running_ && deviceReady_; }
+
+  /// GPU step time in milliseconds (smoothed).
+  float getGpuStepMs() const { return gpuStepMs_.load(std::memory_order_relaxed); }
 
   /// Access the bridge (audio thread reads this).
   GpuGridBridge &getBridge() { return bridge_; }
@@ -78,4 +83,5 @@ private:
 
   // Bridge
   GpuGridBridge bridge_;
+  std::atomic<float> gpuStepMs_{0.0f};
 };

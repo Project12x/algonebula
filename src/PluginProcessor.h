@@ -75,6 +75,8 @@ public:
   juce::AudioProcessorValueTreeState &getAPVTS() { return apvts; }
 
   // --- Thread-safe metrics ---
+  bool isGpuActive() const { return gpuActive.load(std::memory_order_relaxed); }
+  float getGpuStepMs() const { return gpuCompute.getGpuStepMs(); }
   float getCpuLoadPercent() const {
     return cpuLoadPercent.load(std::memory_order_relaxed);
   }
@@ -94,7 +96,6 @@ public:
 
   // --- GPU compute (opt-in, default OFF) ---
   GpuComputeManager &getGpuComputeManager() { return gpuCompute; }
-  bool isGpuActive() const { return gpuActive.load(std::memory_order_relaxed); }
 
   // --- Seed access ---
   uint64_t getSeed() const {
@@ -205,6 +206,7 @@ private:
   // --- GPU compute ---
   GpuComputeManager gpuCompute;
   std::atomic<bool> gpuActive{false};
+  std::atomic<bool> gpuPending{false}; // prevents duplicate callAsync
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AlgoNebulaProcessor)
 };

@@ -547,24 +547,41 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
 
-    // Propagate engine type to GPU adapter (if active)
+    // Propagate engine type to GPU adapter (if active) — must run on message
+    // thread
     if (wantGpu) {
-      auto engineType = static_cast<EngineType>(algoIdx);
-      gpuCompute.setEngine(engineType, gridRows, gridCols);
-      gpuCompute.start();
+      auto eType = engine->getType();
+      int gRows = gridRows;
+      int gCols = gridCols;
+      auto *mgr = &gpuCompute;
+      auto *flag = &gpuActive;
+      juce::MessageManager::callAsync([mgr, flag, eType, gRows, gCols]() {
+        if (mgr->setEngine(eType, gRows, gCols) && mgr->start()) {
+          flag->store(true, std::memory_order_relaxed);
+        }
+      });
     }
   }
 
-  // Toggle GPU on/off (only activate if init+start succeed)
-  if (wantGpu && !gpuActive.load(std::memory_order_relaxed)) {
-    auto engineType = static_cast<EngineType>(algoIdx);
-    if (gpuCompute.setEngine(engineType, gridRows, gridCols) &&
-        gpuCompute.start()) {
-      gpuActive.store(true, std::memory_order_relaxed);
-    }
+  // Toggle GPU on/off — defer to message thread for timer/device safety
+  if (wantGpu && !gpuActive.load(std::memory_order_relaxed) && !gpuPending.load(std::memory_order_relaxed)) {
+    auto eType = engine->getType();
+    int gRows = gridRows;
+    int gCols = gridCols;
+    auto *mgr = &gpuCompute;
+    auto *flag = &gpuActive;
+    gpuPending.store(true, std::memory_order_relaxed);
+    auto *pending = &gpuPending;
+    juce::MessageManager::callAsync([mgr, flag, pending, eType, gRows, gCols]() {
+      if (mgr->setEngine(eType, gRows, gCols) && mgr->start()) {
+        flag->store(true, std::memory_order_relaxed);
+      }
+      pending->store(false, std::memory_order_relaxed);
+    });
   } else if (!wantGpu && gpuActive.load(std::memory_order_relaxed)) {
-    gpuCompute.stop();
     gpuActive.store(false, std::memory_order_relaxed);
+    auto *mgr = &gpuCompute;
+    juce::MessageManager::callAsync([mgr]() { mgr->stop(); });
   }
 
   // Clear output buffer

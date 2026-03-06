@@ -151,6 +151,11 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   cpuMeterLabel.setText("CPU: 0.0%", juce::dontSendNotification);
   addAndMakeVisible(cpuMeterLabel);
 
+  gpuMeterLabel.setFont(juce::Font(juce::FontOptions().withHeight(11.0f)));
+  gpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::text_dim);
+  gpuMeterLabel.setJustificationType(juce::Justification::centredLeft);
+  addAndMakeVisible(gpuMeterLabel);
+
   // --- Transport controls ---
   playPauseBtn.setColour(juce::TextButton::buttonColourId,
                          NebulaColours::bg_surface);
@@ -273,7 +278,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   // --- GPU Acceleration toggle ---
   gpuAccelBtn.setClickingTogglesState(true);
   gpuAccelBtn.setColour(juce::TextButton::buttonColourId,
-                        NebulaColours::bg_surface);
+                        juce::Colour(0xFF1B4D4D));
   gpuAccelBtn.setColour(juce::TextButton::buttonOnColourId,
                         juce::Colour(0xFF00CC88));
   gpuAccelBtn.setColour(juce::TextButton::textColourOffId,
@@ -420,6 +425,7 @@ void AlgoNebulaEditor::resized() {
 
   // --- Header: title row + selector row ---
   cpuMeterLabel.setBounds(getWidth() - 110, 12, 94, 14);
+  gpuMeterLabel.setBounds(getWidth() - 200, 12, 90, 14);
   presetLabel.setBounds(220, 10, 50, 20);
   presetCombo.setBounds(275, 8, 200, 24);
 
@@ -694,4 +700,20 @@ void AlgoNebulaEditor::timerCallback() {
   // Update play/pause button text to match state
   bool running = processor.engineRunning.load(std::memory_order_relaxed);
   playPauseBtn.setButtonText(running ? "Pause" : "Play");
+
+  // Update GPU button text to reflect actual activation state
+  bool gpuOn = processor.isGpuActive();
+  gpuAccelBtn.setButtonText(gpuOn ? "GPU ON" : "GPU");
+
+  // Update GPU meter
+  if (gpuOn) {
+    float gpuMs = processor.getGpuStepMs();
+    float gpuPct = (gpuMs / 16.0f) * 100.0f; // % of 16ms frame
+    gpuMeterLabel.setText(juce::String("GPU: ") + juce::String(gpuMs, 1) + "ms", juce::dontSendNotification);
+    if (gpuPct > 80.0f) gpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::danger);
+    else if (gpuPct > 50.0f) gpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::warning);
+    else gpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::alive);
+  } else {
+    gpuMeterLabel.setText("", juce::dontSendNotification);
+  }
 }
