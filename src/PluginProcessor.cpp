@@ -449,7 +449,8 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
 
   // Initialize engine with default seed
   engine->randomize(42, 0.3f);
-  gridSnapshot.copyFrom(engine->getGrid());
+  gpuCompute.getBridge().updateFromCpu(engine->getGrid());
+  gpuCompute.getBridge().convertToGrid(gridSnapshot);
   engineGeneration.store(0, std::memory_order_relaxed);
 
   // Initialize clock
@@ -482,7 +483,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
                                       true);
 
-  // MIDI note-on: key tracking and velocity (no grid reseed — preserves
+  // MIDI note-on: key tracking and velocity (no grid reseed ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserves
   // symmetric CA growth patterns from manual seeds)
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
@@ -547,7 +548,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
 
-    // GPU needs reinit with new engine � stop current, toggle-on will reinit
+    // GPU needs reinit with new engine ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â stop current, toggle-on will reinit
     if (gpuActive.load(std::memory_order_relaxed)) {
       gpuActive.store(false, std::memory_order_relaxed);
       auto *mgr = &gpuCompute;
@@ -555,7 +556,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
   }
-  // Toggle GPU on/off — defer to message thread for timer/device safety
+  // Toggle GPU on/off ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â defer to message thread for timer/device safety
   if (wantGpu && !gpuActive.load(std::memory_order_relaxed) && !gpuPending.load(std::memory_order_relaxed)) {
     auto eType = engine->getType();
     int gRows = gridRows;
@@ -632,25 +633,21 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
 
   // GPU path: simulation runs on GPU timer thread; CPU path: step on clock tick
+  auto& bridge = gpuCompute.getBridge();
   if (gpuActive.load(std::memory_order_relaxed)) {
-    // GPU is stepping the simulation via GpuComputeManager timer.
+    // GPU is stepping via GpuComputeManager timer.
+    // Bridge is updated by readback callback on message thread.
     for (int i = 0; i < numSamples; ++i) {
-      if (clock.tick() && isRunning && !isFrozen) {
-        // Use GPU bridge grid if available, else fall back to CPU grid
-        if (gpuCompute.getBridge().hasData()) {
-          gridSnapshot = gpuCompute.getBridge().getAudioGrid();
-        } else {
-          gridSnapshot = engine->getGrid();
-        }
+      if (clock.tick() && isRunning && !isFrozen)
         stepTriggeredThisBlock = true;
-      }
     }
   } else {
-    // CPU path: original stepping
+    // CPU path: step engine, then feed bridge
     for (int i = 0; i < numSamples; ++i) {
       if (clock.tick() && isRunning && !isFrozen) {
         engine->getGridMutable().snapshotPrev();
         engine->step();
+        bridge.updateFromCpu(engine->getGrid());
         stepTriggeredThisBlock = true;
       }
     }
@@ -659,9 +656,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Auto-reseed: if alive count unchanged for 8 steps, inject cells
   if (stepTriggeredThisBlock) {
     // Use GPU snapshot for stagnation check when GPU active
-    int currentAlive = gpuActive.load(std::memory_order_relaxed)
-                           ? gridSnapshot.countAlive()
-                           : engine->getGrid().countAlive();
+    int currentAlive = bridge.countAlive();
     if (currentAlive == lastAliveCount) {
       ++stagnationCounter;
     } else {
@@ -704,7 +699,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // Overpopulation cap: if grid is >50% full for 3+ steps, reseed sparse
     const int totalCells =
-        engine->getGrid().getRows() * engine->getGrid().getCols();
+        bridge.getRows() * bridge.getCols();
     if (currentAlive > totalCells / 2) {
       ++overpopCounter;
     } else {
@@ -757,14 +752,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     quantizer.setScale(static_cast<ScaleQuantizer::Scale>(scaleIdx), keyIdx);
 
     // --- Density-driven dynamics ---
-    // Use GPU bridge grid when active, else CPU engine grid
-    const auto &grid = gpuActive.load(std::memory_order_relaxed)
-                           ? gridSnapshot
-                           : engine->getGrid();
-    const int totalCells = grid.getRows() * grid.getCols();
-    float density = (totalCells > 0)
-                        ? static_cast<float>(grid.countAlive()) / totalCells
-                        : 0.0f;
+    float density = bridge.getDensity();
     // Dense grids sound softer; sparse grids are louder
     densityGain = juce::jmap(density, 0.0f, 1.0f, 1.0f, 0.35f);
     smoothDensityGain.setTargetValue(densityGain);
@@ -778,7 +766,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         int vCol = voices[v].getGridCol();
         if (vRow >= 0 && vCol >= 0) {
           // Cell died or out of grid bounds: release
-          if (grid.getCell(vRow, vCol) == 0) {
+          if (!bridge.isAlive(vRow, vCol)) {
             voices[v].noteOff();
           }
         }
@@ -832,7 +820,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // --- Density-adaptive voice count ---
     {
-      float gridDensity = engine->getGrid().getDensity();
+      float gridDensity = bridge.getDensity();
       int effectiveMaxVoices = maxVoices;
       if (gridDensity > 0.3f) {
         // Linearly reduce voices: at 100% density, halve the count
@@ -853,11 +841,11 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       int triggersThisStep = 0;
 
       for (int col = 0;
-           col < grid.getCols() && voicesUsed < effectiveMaxVoices &&
+           col < bridge.getCols() && voicesUsed < effectiveMaxVoices &&
            triggersThisStep < maxTrigsPerStep;
            ++col) {
-        for (int row = 0; row < grid.getRows(); ++row) {
-          if (engine->cellActivated(row, col)) {
+        for (int row = 0; row < bridge.getRows(); ++row) {
+          if (bridge.wasBorn(row, col)) {
             // --- Note probability: skip trigger randomly ---
             musicRng ^= musicRng << 13;
             musicRng ^= musicRng >> 7;
@@ -878,9 +866,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             } else if (pitchGravity > 0.0f) {
               // --- Pitch gravity: bias toward chord tones ---
               midiNote = quantizer.quantizeWeighted(
-                  row, col, 3, 3, grid.getCols(), pitchGravity, musicRng);
+                  row, col, 3, 3, bridge.getCols(), pitchGravity, musicRng);
             } else {
-              midiNote = quantizer.quantize(row, col, 3, 3, grid.getCols());
+              midiNote = quantizer.quantize(row, col, 3, 3, bridge.getCols());
             }
 
             // --- Consonance filter: snap or reject dissonant intervals ---
@@ -915,7 +903,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             float vel = lastMidiVelocity;
 
             // Engine-specific intensity modulates velocity
-            float cellIntensity = engine->getCellIntensity(row, col);
+            float cellIntensity = bridge.getCellIntensity(row, col);
             vel *= cellIntensity;
 
             if (velHumanize > 0.0f) {
@@ -988,8 +976,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
               voices[voiceIdx].setSubOctave(
                   static_cast<SubOscillator::OctaveMode>(subOctIdx));
 
-              double pan = (grid.getCols() > 1)
-                               ? (2.0 * col / (grid.getCols() - 1) - 1.0)
+              double pan = (bridge.getCols() > 1)
+                               ? (2.0 * col / (bridge.getCols() - 1) - 1.0)
                                : 0.0;
               pan *= static_cast<double>(
                   apvts.getRawParameterValue("stereoWidth")->load());
@@ -1008,8 +996,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
               // --- Strum spread: onset delay per column position ---
               if (strumSpread > 0.0f) {
-                float colFrac = (grid.getCols() > 1) ? static_cast<float>(col) /
-                                                           (grid.getCols() - 1)
+                float colFrac = (bridge.getCols() > 1) ? static_cast<float>(col) /
+                                                           (bridge.getCols() - 1)
                                                      : 0.0f;
                 int delaySamples = static_cast<int>(colFrac * strumSpread *
                                                     0.001f * currentSampleRate);
@@ -1219,8 +1207,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
-  // Update grid snapshot for GL/UI thread (simple copy, no lock)
-  gridSnapshot.copyFrom(engine->getGrid());
+  // Update grid snapshot for UI thread
+  bridge.convertToGrid(gridSnapshot);
   engineGeneration.store(engine->getGeneration(), std::memory_order_relaxed);
 
   // Apply master volume with smoothing (per-sample)
@@ -1302,11 +1290,11 @@ void AlgoNebulaProcessor::setStateInformation(const void *data,
   // Restore grid state if present
   auto *gridXml = xml->getChildByName("GridState");
   if (gridXml == nullptr)
-    return; // Legacy state without grid — just use APVTS defaults
+    return; // Legacy state without grid ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â just use APVTS defaults
 
   int version = gridXml->getIntAttribute("version", 0);
   if (version < 1)
-    return; // Unknown version — skip grid restore
+    return; // Unknown version ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â skip grid restore
 
   // Restore engine type and seed
   int algoIdx = gridXml->getIntAttribute("algorithm", 0);
@@ -1360,8 +1348,9 @@ void AlgoNebulaProcessor::setStateInformation(const void *data,
     }
   }
 
-  // Update snapshot for UI
-  gridSnapshot.copyFrom(engine->getGrid());
+  // Update bridge and snapshot from restored engine state
+  gpuCompute.getBridge().updateFromCpu(engine->getGrid());
+  gpuCompute.getBridge().convertToGrid(gridSnapshot);
   stagnationCounter = 0;
   lastAliveCount = 0;
 }

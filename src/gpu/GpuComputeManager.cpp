@@ -48,6 +48,10 @@ bool GpuComputeManager::setEngine(EngineType type, int rows, int cols) {
 
   bridge_.resize(rows, cols);
 
+  // Adaptive timer interval for large grids
+  int cells = rows * cols;
+  timerIntervalMs_ = (cells > 500000) ? 48 : (cells > 100000) ? 32 : 16;
+
   if (!ensureDevice()) {
     fprintf(stderr, "[GpuComputeManager] Failed to initialize GPU device\n");
     return false;

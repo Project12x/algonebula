@@ -77,6 +77,7 @@ private:
   bool deviceReady_ = false;
   bool running_ = false;
   int stepsPerFrame_ = 1;
+  int timerIntervalMs_ = 16;
 
   // Simulation
   std::unique_ptr<ghostsun::ComputeSimulation> simulation_;
