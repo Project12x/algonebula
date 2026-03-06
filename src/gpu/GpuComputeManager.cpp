@@ -117,14 +117,12 @@ void GpuComputeManager::timerCallback() {
   auto queue = gpu.getQueue();
 
   auto t0 = std::chrono::steady_clock::now();
-
   // Process mapAsync callbacks from previous frame
 #ifdef WEBGPU_BACKEND_WGPU
   wgpuDevicePoll(device, false, nullptr);
 #elif defined(WEBGPU_BACKEND_DAWN)
   wgpuDeviceTick(device);
 #endif
-
   // Poll completed readbacks
   readbackMgr_.poll();
 
@@ -140,6 +138,7 @@ void GpuComputeManager::timerCallback() {
 
   // Request readback (throttled - skip if in-flight)
   if (readbackMgr_.inFlightCount() == 0) {
+
     auto requests = simulation_->getReadbackRequests();
     int r = rows_;
     int c = cols_;

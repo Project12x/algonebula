@@ -631,20 +631,6 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     voices[v].setFrozen(isFrozen);
 
 
-  // DEBUG: log GPU state transitions
-  static bool lastGpuState = false;
-  bool curGpu = gpuActive.load(std::memory_order_relaxed);
-  if (curGpu != lastGpuState) {
-    fprintf(stderr, "[processBlock] gpuActive changed: %d -> %d\n", (int)lastGpuState, (int)curGpu);
-    lastGpuState = curGpu;
-  }
-  static int gpuDataLogCount = 0;
-  if (curGpu && gpuDataLogCount < 5) {
-    bool hasData = gpuCompute.getBridge().hasData();
-    uint64_t gen = gpuCompute.getBridge().getGeneration();
-    fprintf(stderr, "[processBlock] GPU bridge: hasData=%d gen=%llu\n", (int)hasData, (unsigned long long)gen);
-    gpuDataLogCount++;
-  }
   // GPU path: simulation runs on GPU timer thread; CPU path: step on clock tick
   if (gpuActive.load(std::memory_order_relaxed)) {
     // GPU is stepping the simulation via GpuComputeManager timer.
