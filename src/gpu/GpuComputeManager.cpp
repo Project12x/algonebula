@@ -118,7 +118,14 @@ void GpuComputeManager::timerCallback() {
 
   auto t0 = std::chrono::steady_clock::now();
 
-  // Poll completed readbacks from previous frame first
+  // Process mapAsync callbacks from previous frame
+#ifdef WEBGPU_BACKEND_WGPU
+  wgpuDevicePoll(device, false, nullptr);
+#elif defined(WEBGPU_BACKEND_DAWN)
+  wgpuDeviceTick(device);
+#endif
+
+  // Poll completed readbacks
   readbackMgr_.poll();
 
   // Create command encoder
@@ -159,10 +166,4 @@ void GpuComputeManager::timerCallback() {
   float prev = gpuStepMs_.load(std::memory_order_relaxed);
   gpuStepMs_.store(prev * 0.9f + ms * 0.1f, std::memory_order_relaxed);
 
-  // Poll the device to process mapAsync callbacks
-#ifdef WEBGPU_BACKEND_WGPU
-  wgpuDevicePoll(device, false, nullptr);
-#elif defined(WEBGPU_BACKEND_DAWN)
-  wgpuDeviceTick(device);
-#endif
 }
