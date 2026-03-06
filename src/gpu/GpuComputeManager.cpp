@@ -102,8 +102,6 @@ struct ReadbackContext {
   uint64_t size;
   int rows, cols;
   GpuGridBridge *bridge;
-  ghostsun::ComputeSimulation *sim;
-  uint32_t reqId;
 };
 
 static void onMapCallback(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
@@ -117,12 +115,7 @@ static void onMapCallback(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
       ctx->bridge->updateFromGpu(static_cast<const float *>(mapped), ctx->rows,
                                  ctx->cols);
 
-      // Also notify the simulation
-      ghostsun::ReadbackResult result;
-      result.data.resize(ctx->size);
-      std::memcpy(result.data.data(), mapped, ctx->size);
-      result.id = ctx->reqId;
-      ctx->sim->onReadbackComplete(result);
+      // Simulation notification removed — bridge update is sufficient
     }
   }
   wgpuBufferUnmap(ctx->staging);
@@ -189,8 +182,7 @@ void GpuComputeManager::timerCallback() {
     wgpuCommandEncoderRelease(enc2);
 
     // Map the staging buffer asynchronously (wgpu-native v27 API)
-    auto *ctx = new ReadbackContext{staging,  req.size,          rows_, cols_,
-                                    &bridge_, simulation_.get(), req.id};
+    auto *ctx = new ReadbackContext{staging, req.size, rows_, cols_, &bridge_};
 
     WGPUBufferMapCallbackInfo cbInfo = {};
     cbInfo.mode = WGPUCallbackMode_AllowProcessEvents;

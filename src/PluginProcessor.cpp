@@ -547,22 +547,14 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
 
-    // Propagate engine type to GPU adapter (if active) — must run on message
-    // thread
-    if (wantGpu) {
-      auto eType = engine->getType();
-      int gRows = gridRows;
-      int gCols = gridCols;
+    // GPU needs reinit with new engine � stop current, toggle-on will reinit
+    if (gpuActive.load(std::memory_order_relaxed)) {
+      gpuActive.store(false, std::memory_order_relaxed);
       auto *mgr = &gpuCompute;
-      auto *flag = &gpuActive;
-      juce::MessageManager::callAsync([mgr, flag, eType, gRows, gCols]() {
-        if (mgr->setEngine(eType, gRows, gCols) && mgr->start()) {
-          flag->store(true, std::memory_order_relaxed);
-        }
-      });
+      juce::MessageManager::callAsync([mgr]() { mgr->stop(); });
     }
-  }
 
+  }
   // Toggle GPU on/off — defer to message thread for timer/device safety
   if (wantGpu && !gpuActive.load(std::memory_order_relaxed) && !gpuPending.load(std::memory_order_relaxed)) {
     auto eType = engine->getType();
@@ -638,6 +630,21 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (int v = 0; v < kMaxVoices; ++v)
     voices[v].setFrozen(isFrozen);
 
+
+  // DEBUG: log GPU state transitions
+  static bool lastGpuState = false;
+  bool curGpu = gpuActive.load(std::memory_order_relaxed);
+  if (curGpu != lastGpuState) {
+    fprintf(stderr, "[processBlock] gpuActive changed: %d -> %d\n", (int)lastGpuState, (int)curGpu);
+    lastGpuState = curGpu;
+  }
+  static int gpuDataLogCount = 0;
+  if (curGpu && gpuDataLogCount < 5) {
+    bool hasData = gpuCompute.getBridge().hasData();
+    uint64_t gen = gpuCompute.getBridge().getGeneration();
+    fprintf(stderr, "[processBlock] GPU bridge: hasData=%d gen=%llu\n", (int)hasData, (unsigned long long)gen);
+    gpuDataLogCount++;
+  }
   // GPU path: simulation runs on GPU timer thread; CPU path: step on clock tick
   if (gpuActive.load(std::memory_order_relaxed)) {
     // GPU is stepping the simulation via GpuComputeManager timer.
