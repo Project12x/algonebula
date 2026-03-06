@@ -6,10 +6,11 @@
 
 #include "GpuGridBridge.h"
 #include "engine/CellularEngine.h"
-#include <ghostsun_render/ComputeSimulation.h>
-#include <juce_events/juce_events.h>
 #include <atomic>
 #include <chrono>
+#include <ghostsun_render/ComputeSimulation.h>
+#include <ghostsun_render/ReadbackManager.h>
+#include <juce_events/juce_events.h>
 #include <memory>
 
 class GpuComputeManager : private juce::Timer {
@@ -46,7 +47,9 @@ public:
   bool isRunning() const { return running_ && deviceReady_; }
 
   /// GPU step time in milliseconds (smoothed).
-  float getGpuStepMs() const { return gpuStepMs_.load(std::memory_order_relaxed); }
+  float getGpuStepMs() const {
+    return gpuStepMs_.load(std::memory_order_relaxed);
+  }
 
   /// Access the bridge (audio thread reads this).
   GpuGridBridge &getBridge() { return bridge_; }
@@ -80,6 +83,9 @@ private:
   EngineType currentType_ = EngineType::GoL;
   int rows_ = 0;
   int cols_ = 0;
+
+  // Readback (library-managed lifecycle)
+  ghostsun::ReadbackManager readbackMgr_;
 
   // Bridge
   GpuGridBridge bridge_;

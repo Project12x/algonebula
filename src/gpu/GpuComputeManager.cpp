@@ -1,5 +1,6 @@
 #include "GpuComputeManager.h"
 #include "EngineAdapters.h"
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <ghostsun_render/GpuDevice.h>
@@ -53,6 +54,10 @@ bool GpuComputeManager::setEngine(EngineType type, int rows, int cols) {
   }
 
   auto device = ghostsun::GpuDevice::getInstance().getDevice();
+
+  // Initialize readback manager
+  readbackMgr_.init(device);
+
   if (!simulation_->init(device)) {
     fprintf(stderr,
             "[GpuComputeManager] Shader/pipeline init failed for engine %d\n",
@@ -69,7 +74,6 @@ bool GpuComputeManager::ensureDevice() {
     return true;
   }
 
-  // For headless compute (no surface), pass nullptr.
   if (!gpu.ensureInstance())
     return false;
   if (!gpu.ensureDevice(nullptr))
@@ -80,6 +84,7 @@ bool GpuComputeManager::ensureDevice() {
 }
 
 void GpuComputeManager::shutdownGpu() {
+  readbackMgr_.shutdown(); // drain pending readbacks safely
   if (simulation_)
     simulation_->shutdown();
   simulation_.reset();
@@ -94,33 +99,6 @@ void GpuComputeManager::seed(uint64_t /*rngSeed*/, float /*density*/) {
 void GpuComputeManager::clearState() {
   if (simulation_)
     simulation_->reset();
-}
-
-// Context for async readback
-struct ReadbackContext {
-  WGPUBuffer staging;
-  uint64_t size;
-  int rows, cols;
-  GpuGridBridge *bridge;
-};
-
-static void onMapCallback(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
-                          void *userdata1, void * /*userdata2*/) {
-  auto *ctx = static_cast<ReadbackContext *>(userdata1);
-  if (status == WGPUMapAsyncStatus_Success) {
-    const void *mapped =
-        wgpuBufferGetConstMappedRange(ctx->staging, 0, ctx->size);
-    if (mapped) {
-      // Feed to bridge for audio thread
-      ctx->bridge->updateFromGpu(static_cast<const float *>(mapped), ctx->rows,
-                                 ctx->cols);
-
-      // Simulation notification removed — bridge update is sufficient
-    }
-  }
-  wgpuBufferUnmap(ctx->staging);
-  wgpuBufferRelease(ctx->staging);
-  delete ctx;
 }
 
 static WGPUStringView toSV(const char *s) { return {s, s ? strlen(s) : 0}; }
@@ -140,6 +118,9 @@ void GpuComputeManager::timerCallback() {
 
   auto t0 = std::chrono::steady_clock::now();
 
+  // Poll completed readbacks from previous frame first
+  readbackMgr_.poll();
+
   // Create command encoder
   WGPUCommandEncoderDescriptor encDesc = {};
   encDesc.label = toSV("gpu_compute_step");
@@ -150,6 +131,21 @@ void GpuComputeManager::timerCallback() {
     simulation_->step(encoder);
   }
 
+  // Request readback (throttled - skip if in-flight)
+  if (readbackMgr_.inFlightCount() == 0) {
+    auto requests = simulation_->getReadbackRequests();
+    int r = rows_;
+    int c = cols_;
+    auto *br = &bridge_;
+    for (auto &req : requests) {
+      readbackMgr_.requestReadback(
+          encoder, req, [br, r, c](const ghostsun::ReadbackResult &result) {
+            br->updateFromGpu(
+                reinterpret_cast<const float *>(result.data.data()), r, c);
+          });
+    }
+  }
+
   // Submit commands
   WGPUCommandBufferDescriptor cbDesc = {};
   cbDesc.label = toSV("gpu_compute_cmdbuf");
@@ -157,41 +153,6 @@ void GpuComputeManager::timerCallback() {
   wgpuQueueSubmit(queue, 1, &cmdBuffer);
   wgpuCommandBufferRelease(cmdBuffer);
   wgpuCommandEncoderRelease(encoder);
-
-  // Handle readback
-  auto requests = simulation_->getReadbackRequests();
-  for (auto &req : requests) {
-    // Create staging buffer
-    WGPUBufferDescriptor stagingDesc = {};
-    stagingDesc.label = toSV("readback_staging");
-    stagingDesc.size = req.size;
-    stagingDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
-    auto staging = wgpuDeviceCreateBuffer(device, &stagingDesc);
-
-    // Copy from GPU buffer to staging
-    WGPUCommandEncoderDescriptor enc2Desc = {};
-    enc2Desc.label = toSV("readback_copy");
-    auto enc2 = wgpuDeviceCreateCommandEncoder(device, &enc2Desc);
-    wgpuCommandEncoderCopyBufferToBuffer(enc2, req.srcBuffer, req.offset,
-                                         staging, 0, req.size);
-    WGPUCommandBufferDescriptor cb2Desc = {};
-    cb2Desc.label = toSV("readback_cmdbuf");
-    auto cmd2 = wgpuCommandEncoderFinish(enc2, &cb2Desc);
-    wgpuQueueSubmit(queue, 1, &cmd2);
-    wgpuCommandBufferRelease(cmd2);
-    wgpuCommandEncoderRelease(enc2);
-
-    // Map the staging buffer asynchronously (wgpu-native v27 API)
-    auto *ctx = new ReadbackContext{staging, req.size, rows_, cols_, &bridge_};
-
-    WGPUBufferMapCallbackInfo cbInfo = {};
-    cbInfo.mode = WGPUCallbackMode_AllowProcessEvents;
-    cbInfo.callback = onMapCallback;
-    cbInfo.userdata1 = ctx;
-    cbInfo.userdata2 = nullptr;
-
-    wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, req.size, cbInfo);
-  }
 
   auto t1 = std::chrono::steady_clock::now();
   float ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
