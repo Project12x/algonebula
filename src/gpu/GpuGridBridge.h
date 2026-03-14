@@ -99,31 +99,47 @@ public:
   // Read side (lock-free)
   // ---------------------------------------------------------------
 
-  /// Continuous float intensity for a cell. Returns 0.0 if no data.
-  float getCellIntensity(int row, int col) const {
-    const float *data = readBuf_.load(std::memory_order_acquire);
-    if (!data || row < 0 || row >= rows_ || col < 0 || col >= cols_)
+  /// Fetch current and previous float buffers for bulk reading.
+  /// Must call readUnlock() when done.
+  bool readLock(const float *&current, const float *&previous) const {
+    current = readBuf_.load(std::memory_order_acquire);
+    previous = prevBuf_.data();
+    return current != nullptr;
+  }
+
+  void readUnlock() const {
+    // No-op for now. Future: could use hazard pointers or a spinlock
+    // if writer needs to wait. For double-buffering with memcpy,
+    // readBuf_ gives us a stable buffer while writer uses the other.
+  }
+
+  /// Continuous float intensity from a locked buffer.
+  static float getCellIntensityLocked(const float *current, int rows, int cols,
+                                      int row, int col) {
+    if (row < 0 || row >= rows || col < 0 || col >= cols)
       return 0.0f;
-    return data[row * cols_ + col];
+    return current[row * cols + col];
   }
 
-  /// Whether a cell is above the alive threshold.
-  bool isAlive(int row, int col, float threshold = 0.1f) const {
-    return getCellIntensity(row, col) >= threshold;
+  /// Whether a cell is above the alive threshold from a locked buffer.
+  static bool isAliveLocked(const float *current, int rows, int cols, int row,
+                            int col, float threshold = 0.1f) {
+    return getCellIntensityLocked(current, rows, cols, row, col) >= threshold;
   }
 
-  /// Whether a cell was just born (alive now, dead last frame).
-  bool wasBorn(int row, int col, float threshold = 0.1f) const {
-    if (generation_ < 2)
+  /// Whether a cell was just born from locked buffers.
+  static bool wasBornLocked(const float *current, const float *previous,
+                            int rows, int cols, int row, int col,
+                            uint64_t generation, float threshold = 0.1f) {
+    if (generation < 2)
       return false;
-    if (row < 0 || row >= rows_ || col < 0 || col >= cols_)
+    if (row < 0 || row >= rows || col < 0 || col >= cols)
       return false;
-    int idx = row * cols_ + col;
-    const float *cur = readBuf_.load(std::memory_order_acquire);
-    return cur[idx] >= threshold && prevBuf_[idx] < threshold;
+    int idx = row * cols + col;
+    return current[idx] >= threshold && previous[idx] < threshold;
   }
 
-  /// Count of cells above threshold.
+  /// Count of cells above threshold from a locked buffer.
   int countAlive(float threshold = 0.1f) const {
     const float *data = readBuf_.load(std::memory_order_acquire);
     if (!data)
@@ -167,8 +183,12 @@ public:
       return;
     for (int r = 0; r < rows_; ++r) {
       for (int c = 0; c < cols_; ++c) {
-        uint8_t val = (data[r * cols_ + c] >= threshold) ? 1 : 0;
-        out.setCell(r, c, val);
+        float val = data[r * cols_ + c];
+        uint8_t cellState = (val >= threshold) ? 1 : 0;
+        out.setCell(r, c, cellState);
+        // Store float intensity as age (0-255) for continuous engine rendering
+        uint16_t intensity = static_cast<uint16_t>(std::min(val, 1.0f) * 255.0f);
+        out.setAge(r, c, intensity);
       }
     }
   }

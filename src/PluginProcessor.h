@@ -137,6 +137,7 @@ private:
   Grid gridSnapshot; // Double-buffer: audio writes, GL/UI reads
   CellEditQueue cellEditQueue;
   std::atomic<uint64_t> engineGeneration{0};
+  uint64_t lastSnapshotGeneration_{UINT64_MAX}; // sentinel: always convert on first call
 
   // --- Clock + Music Theory ---
   ClockDivider clock;
