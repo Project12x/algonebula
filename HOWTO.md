@@ -42,7 +42,8 @@ cmake --build build --config Release
 3. Add `EngineType` enum value in `CellularEngine.h`
 4. Add factory case in `PluginProcessor::createEngine()`
 5. Add visualization case in `GridComponent::paint()` if engine has native data
-6. Add tests in `tests/main.cpp`
+6. Add GPU adapter in `src/gpu/adapters/` (ComputeSimulation subclass + WGSL shader)
+7. Add tests in `tests/main.cpp`
 
 ### Adding a factory preset
 1. Edit `src/engine/FactoryPresets.h`
@@ -52,6 +53,24 @@ cmake --build build --config Release
 
 ### Build preservation
 Before building, copy previous artifacts to `releases/YYYY-MM-DD_HHMM/`.
+
+### GPU compute development
+- GPU adapters live in `src/gpu/adapters/`
+- WGSL shaders live in `src/gpu/shaders/`
+- `GpuComputeManager` drives the GPU simulation loop on the message thread
+- `GpuGridBridge` is the lock-free float bridge between GPU and audio thread
+- GPU is opt-in via `gpuAccel` APVTS parameter (default OFF)
+
+## Troubleshooting
+
+### App freezes on launch
+Stale saved state may restore a large grid size (e.g. 1280x1280). Fix:
+```bash
+Remove-Item "$env:APPDATA\Algo Nebula\*" -Force
+```
+
+### GPU crash on specific engine
+Disable GPU (`gpuAccel=OFF`) and use the CPU path. Report the engine type and error.
 
 ## Common Tasks
 

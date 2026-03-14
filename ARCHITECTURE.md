@@ -2,27 +2,79 @@
 
 ## High-Level Signal Flow
 ```
-CellularEngine (7 engines, audio thread, no alloc)
+CellularEngine (7 engines, CPU path, audio thread)
+    OR
+GpuComputeManager (7 GPU adapters, message thread, WebGPU/Dawn)
+    -> GpuGridBridge (lock-free float double-buffer)
+    -> processBlock reads floats via readLock/readUnlock
     -> ScaleQuantizer (pitch mapping, 15 scales x 12 keys)
     -> Musicality Layer (noteProbability, melodicInertia, velocityHumanize)
     -> SynthVoice[] (PolyBLEP osc + SubOsc + NoiseLayer + AHDSR + SVF)
     -> Density Modulation (grid density -> gain + filter cutoff)
     -> StereoMixer (per-voice pan from grid column position)
-    -> [Future: EffectChain, FreezeProcessor, SafetyProcessor]
+    -> EffectChain (9 effects, parallel routing)
+    -> SafetyProcessor (DC block + brickwall limiter)
     -> DAC
 ```
 
+## GPU / CPU Dual Path
+
+```
+GPU path (gpuAccel=ON):
+  Message Thread              Audio Thread
+      |                           |
+  GpuComputeManager               |
+  timerCallback() ~60Hz          |
+      |                           |
+  ComputeSimulation::step()      |
+  GPU readback -> float[]        |
+      |                           |
+  GpuGridBridge::updateFromGpu() |
+  (atomic pointer swap)          |
+      |                           |
+      |  ---readLock()---------> |
+      |     float* current       |
+      |     float* previous      |
+      |  ---readUnlock()-------> |
+      |                           |
+      |  convertToGrid()         |
+      |  (generation-gated)      |
+      |     -> gridSnapshot      |
+
+CPU path (gpuAccel=OFF):
+  Audio Thread
+      |
+  engine->step()
+  bridge.updateFromCpu(engine->getGrid())
+      | (same readLock/readUnlock flow)
+```
+
+### GpuGridBridge
+- Float-only double-buffer with atomic pointer swap
+- `updateFromGpu(float*, size_t)`: writer side (message thread)
+- `updateFromCpu(Grid&)`: writer side (audio thread, CPU path)
+- `readLock/readUnlock`: consumer side (audio thread)
+- `convertToGrid(Grid&)`: generation-gated conversion to Grid for UI painting
+  - Stores float intensity as age (0-255) for continuous engine rendering
+  - Only runs when bridge generation changes (prevents 1.6M ops/sec at large grids)
+- Previous buffer snapshot for birth detection (`wasBornLocked`)
+
 ## Engine Architecture
 ```
-UI Thread                Audio Thread              GL/UI Thread
+UI Thread                Audio Thread              UI Thread (paint)
     |                        |                         |
     |  CellEditQueue (SPSC)  |                         |
     |  --push(row,col,st)--> |                         |
     |                        | drainInto(grid)         |
     |                        | engine->step()          |
-    |                        | gridSnapshot.copyFrom() |
-    |                        |  ----memcpy-----------> |
-    |                        |     (double buffer)     |
+    |                        | bridge.updateFromCpu()  |
+    |                        |                         |
+    |                        | bridge.readLock()       |
+    |                        | (voice triggering)      |
+    |                        | bridge.readUnlock()     |
+    |                        |                         |
+    |                        | convertToGrid()         |
+    |                        |   -> gridSnapshot ----> | GridComponent::paint()
 ```
 
 ### CellularEngine Interface
@@ -42,11 +94,11 @@ All implementations allocation-free in `step()`. Factory method in processor cre
 | BrownianField | Continuous | Walker positions + `float` energy field | Random walk deposits |
 
 ### Grid
-- Dynamic size: Small (8x12), Medium (12x16), Large (16x24), XL (24x32)
-- Max capacity: `uint8_t[32*64]` cells + `uint16_t[32*64]` ages
+- Dynamic size: 12 options from Small (8x12) to Ultra (1280x1280)
+- Max capacity: 1280x1280 cells + ages (std::vector heap storage)
 - `wasBorn()` tracking for event-based note triggering
 - Toroidal wrapping via modular arithmetic
-- No runtime allocation
+- Age field used for both GoL age tracking and float intensity storage
 
 ### CellEditQueue
 - Lock-free SPSC ring buffer (256 slots)
@@ -56,11 +108,11 @@ All implementations allocation-free in `step()`. Factory method in processor cre
 ## Musicality System
 
 ### Note Triggering
-Voice triggering occurs on cell birth events (`wasBorn()`). Three musicality parameters modulate this:
+Voice triggering occurs on cell birth events. Three musicality parameters modulate this:
 
-- **noteProbability** (0-1): Random gate — each birth rolls against this threshold; miss = skip
-- **melodicInertia** (0-1): Probability of reusing last triggered pitch vs computing new from grid position
-- **velocityHumanize** (0-0.3): Random velocity offset applied to each triggered note
+- **noteProbability** (0-1): Random gate -- each birth rolls against this threshold
+- **melodicInertia** (0-1): Probability of reusing last triggered pitch
+- **velocityHumanize** (0-0.3): Random velocity offset
 
 ### Density-Driven Dynamics
 Grid density (alive cells / total cells) modulates:
@@ -84,12 +136,12 @@ Grid density (alive cells / total cells) modulates:
 ### ScaleQuantizer
 - 15 scales: Chromatic, Major/Minor, 7 modes, 2 pentatonics, Blues, Whole-Tone, Harmonic/Melodic Minor
 - 12 root keys (0=C through 11=B)
-- O(1) array lookup — pre-computed degree tables
+- O(1) array lookup -- pre-computed degree tables
 
 ### Microtuning
 - 3 tuning systems: 12-TET (equal), Just Intonation (5-limit), Pythagorean (3:2 stacking)
 - Adjustable A4 reference (default 440Hz)
-- Pre-computed 128-note frequency table — O(1) RT lookup
+- Pre-computed 128-note frequency table -- O(1) RT lookup
 
 ## Synth Voices
 
@@ -108,33 +160,53 @@ Grid density (alive cells / total cells) modulates:
 
 ### SynthVoice
 - Composite: PolyBLEPOscillator + SubOscillator + NoiseLayer + AHDSREnvelope + SVFilter
-- Max 8 voices with quietest-voice stealing
+- Max 64 voices with quietest-voice stealing
 - Stereo panning from grid column position (equal-power)
 - Grid position tracked per-voice for cell-death release
+
+## Effects Chain
+
+### StereoEffect Base
+- Abstract interface: `init()`, `process()`, `reset()`, `getMix()`, `setMix()`, `isBypassed()`
+- 9 effects: StereoChorus, StereoDelay, PlateReverb, StereoPhaser, StereoFlanger, Bitcrush, TapeSaturation, ShimmerReverb, PingPongDelay
+- APVTS toggle per effect for quick A/B switching
+- Parallel send/return routing (prevents cascading feedback)
+
+### SafetyProcessor
+- DC block (5Hz HPF) + ultrasonic filter (20kHz LPF) + brickwall limiter (-0.3dBFS)
+- Always active, never bypassed
+
+### Modulation Matrix
+- 2 global LFOs (sine/tri/saw/square/S&H, 0.01-20Hz)
+- Bipolar amount per destination
+- 18 routeable destinations (effect mixes, rates, filter, envelope)
 
 ## Visualization
 
 ### GridComponent (Engine-Aware)
 Each engine renders with a distinct color palette:
-- **GoL**: Birth/alive intensity from `NebulaColours`
+- **GoL**: Birth/alive age gradient from `NebulaColours`
 - **Brian's Brain**: Cyan (alive) / Amber (dying) 3-state
 - **Cyclic CA**: HSL hue wheel mapped from cell state
-- **R-D / Lenia / Swarm / Brownian**: Intensity heatmaps from native float fields
+- **R-D / Lenia / Swarm / Brownian**: Intensity heatmaps from float data (mapped via age field)
 
 Status bar shows engine name + generation counter.
 
 ## Thread Model
-- **Audio thread**: `processBlock()` — zero allocation, lock-free reads
-- **UI thread**: editor painting, parameter changes via APVTS (atomic), cell edits via SPSC queue
-- **Communication**: SPSC queue (UI->audio), atomic reads (audio->UI), double-buffered grid state
+- **Audio thread**: `processBlock()` -- zero allocation, lock-free reads from bridge
+- **Message thread**: `GpuComputeManager::timerCallback()` -- GPU compute + readback, editor painting
+- **UI thread**: parameter changes via APVTS (atomic), cell edits via SPSC queue
+- **Communication**: SPSC queue (UI->audio), atomic reads (audio->UI), GpuGridBridge (GPU->audio), double-buffered grid state
 
 ## Key Design Decisions
 - All buffers pre-allocated in `prepareToPlay()`
-- APVTS for all parameters — enables host automation and state persistence
+- APVTS for all parameters -- enables host automation and state persistence
+- GPU is opt-in (`gpuAccel` default OFF) for iGPU/low-end compatibility
 - Fonts embedded as BinaryData (no system font dependency)
 - Engine tests are pure C++ (no JUCE) for fast compile-test cycles
-- Factory method pattern for engine creation — no runtime type switching in audio path
-- xorshift64 PRNG for all randomization (musicality + seeding) — deterministic, allocation-free
+- Factory method pattern for engine creation -- no runtime type switching in audio path
+- xorshift64 PRNG for all randomization -- deterministic, allocation-free
+- Generation-gated grid conversion -- prevents unnecessary work on audio thread
 
 ## Dependencies
 | Library | Purpose |
@@ -142,5 +214,6 @@ Status bar shows engine name + generation counter.
 | JUCE 8 | Framework, DSP, audio I/O |
 | Gin | Plugin utils |
 | melatonin_blur | GPU-accelerated glow/shadow |
-| Signalsmith DSP | Delay, FDN reverb (future) |
-| DaisySP | DSP primitives (future) |
+| Signalsmith DSP | Delay, FDN reverb |
+| DaisySP | DSP primitives |
+| ghostsun_render | WebGPU/Dawn GPU compute + rendering |

@@ -5,12 +5,15 @@ Generative ambient synthesizer plugin (VST3/Standalone) powered by cellular auto
 ## Features
 
 - **7 CA Engines**: Game of Life, Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
+- **GPU Compute**: Optional WebGPU acceleration for all engines via ghostsun_render (Dawn)
 - **8 Waveshapes**: PolyBLEP anti-aliased oscillators (Sine, Saw, Pulse, Triangle + 4 composites)
+- **9 Effects**: Chorus, Delay, Reverb, Phaser, Flanger, Bitcrush, Tape Saturation, Shimmer, Ping Pong
+- **Modulation Matrix**: 2 global LFOs with 18 routeable destinations
 - **Musical Intelligence**: Note probability, melodic inertia, velocity humanization, density-driven dynamics
 - **15 Scales x 12 Keys**: Chromatic through exotic modes, pentatonic, blues, whole-tone
 - **3 Tuning Systems**: 12-TET, Just Intonation, Pythagorean with adjustable A4 reference
-- **Adjustable Grid**: 4 sizes (8x12 to 24x32) with engine-aware visualization
-- **11 Factory Presets**: Musical, experimental, and utility categories
+- **12 Grid Sizes**: From Small (8x12) to Ultra (1280x1280) with engine-aware visualization
+- **16 Factory Presets**: Musical, experimental, and utility categories
 - **MIDI Keyboard**: Built-in virtual keyboard, MIDI note-on triggers grid reseed
 
 ## Quick Start
@@ -40,6 +43,7 @@ cmake --build build --config Release
 - melatonin_blur (glow effects)
 - Signalsmith DSP (header-only)
 - DaisySP (DSP primitives)
+- ghostsun_render (WebGPU/Dawn GPU compute)
 
 ## License
 Proprietary. All rights reserved.

@@ -3,6 +3,37 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.0] - 2026-03-14
+
+### Added
+
+- **GPU Compute Integration (Phase 13a-c)**: Native WebGPU compute for all 7 CA engines via `ghostsun_render` library
+- **GpuComputeManager**: Timer-driven GPU simulation loop (~60 FPS) with async readback pipeline
+- **GpuGridBridge**: Lock-free float-only bridge between GPU readback and audio thread
+  - Double-buffered float arrays with atomic pointer swap
+  - Generation-gated `convertToGrid` (prevents 1.6M cell conversions/sec at large grids)
+  - Float intensity preserved as age (0-255) for continuous engine visualization
+- **7 GPU Engine Adapters**: GoL, Brian's Brain, Cyclic CA, Reaction-Diffusion, Lenia, Particle Swarm, Brownian Field
+- **GPU Toggle**: APVTS `gpuAccel` parameter (default OFF), GPU button in transport strip
+- **GPU Meter**: Real-time GPU step time display in editor
+- **Expanded Grid Sizes**: 12 options from Small (8x12) to Ultra (1280x1280)
+- **ReadbackManager**: Library-managed async GPU buffer readback with throttling
+- **Adaptive Timer**: GPU timer interval scales with grid size (16ms/32ms/48ms)
+
+### Fixed
+
+- **Float Bridge Launch Crash**: Early `return` in `processBlock` starved audio thread when bridge had no data; replaced with `if (bridgeHasData)` guard
+- **ConvertToGrid Performance**: Was running on every processBlock (1.6M cells at 1280x1280); now generation-gated via bridge generation counter
+- **Missing readUnlock**: `bridge.readUnlock()` was not called on the no-data path
+- **Stale bridge.getCols()**: Replaced with cached `bCols` inside locked region
+- **Continuous Engine Visualization**: `convertToGrid` now stores float intensity as age (0-255) for Lenia, R-D, Particle Swarm, and Brownian gradient rendering
+
+### Changed
+
+- Grid max capacity increased to 1280x1280 (was 512x512)
+- `GpuGridBridge` is now float-only (was binary grid); audio thread reads floats directly with subsampling for large grids
+- Voice triggering uses `wasBornLocked()` on float buffers instead of binary grid `wasBorn()`
+
 ## [0.9.0] - 2026-02-18
 
 ### Added
