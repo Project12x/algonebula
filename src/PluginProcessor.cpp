@@ -1311,10 +1311,18 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   }
 
   // Update grid snapshot for UI thread (only when bridge has new data)
+  // Throttle conversion for large grids to prevent audio thread overload:
+  //   >500K cells: convert every 4th generation
+  //   >100K cells: convert every 2nd generation
   uint64_t bridgeGen = bridge.getGeneration();
   if (bridgeGen != lastSnapshotGeneration_) {
+    int totalCells = bridge.getRows() * bridge.getCols();
+    int convertSkip = (totalCells > 500000) ? 4 : (totalCells > 100000) ? 2 : 1;
+    bool shouldConvert = (bridgeGen % convertSkip == 0);
     lastSnapshotGeneration_ = bridgeGen;
-    bridge.convertToGrid(gridSnapshot);
+    if (shouldConvert) {
+      bridge.convertToGrid(gridSnapshot);
+    }
   }
   engineGeneration.store(engine->getGeneration(), std::memory_order_relaxed);
 

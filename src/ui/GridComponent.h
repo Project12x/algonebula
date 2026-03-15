@@ -143,8 +143,19 @@ private:
   AlgoNebulaProcessor &processor;
   int lastToggledRow = -1;
   int lastToggledCol = -1;
+  int currentTimerHz_ = 20;
 
-  void timerCallback() override { repaint(); }
+  void timerCallback() override {
+    // Adaptive FPS: reduce repaint frequency for large grids
+    const auto &grid = processor.getGridSnapshot();
+    int cells = grid.getRows() * grid.getCols();
+    int targetHz = (cells > 500000) ? 8 : (cells > 100000) ? 12 : 20;
+    if (targetHz != currentTimerHz_) {
+      currentTimerHz_ = targetHz;
+      startTimerHz(targetHz);
+    }
+    repaint();
+  }
 
   void toggleCellAt(juce::Point<float> pos) {
     const auto &grid = processor.getGridSnapshot();
