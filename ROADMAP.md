@@ -665,6 +665,46 @@ no longer directly represents what is heard. This phase bridges that gap.
 
 ---
 
+## Phase 13.5 — CPU Engine RT-Safety + SIMD Optimization (`v0.13.7`)
+
+**Goal:** Fix RT-safety violation (CA stepping on audio thread) and add SIMD-accelerated stepping for large CPU grids.
+
+**Problem:** CPU CA engines step the entire grid inside `processBlock()` — heap-touching, branching-heavy iteration over up to 1.6M cells. This blocks the audio callback for tens of milliseconds, causing audio glitches at large grid sizes. This is a fundamental real-time safety violation.
+
+### Part A — Background Thread Offload (RT-Safety Fix)
+- [ ] Create `CpuStepThread` (dedicated juce::Thread or juce::Timer) that runs CPU engine `step()` off the audio thread
+- [ ] CPU engines write results to `GpuGridBridge` (reuse existing lock-free infrastructure)
+- [ ] Audio thread reads only from `GpuGridBridge` — same path as GPU mode
+- [ ] Remove all `engine->step()` calls from `processBlock()`
+- [ ] Verify: zero allocations in processBlock with CPU engines at 1280x1280
+
+### Part B — SIMD-Accelerated Stepping
+- [ ] Bit-packed grid representation: `uint64_t` bitfields (64 cells per word)
+- [ ] Bitwise neighbor counting via shift + popcount for binary CAs (GoL, HighLife, Seeds, Day & Night)
+- [ ] SSE2/AVX2 intrinsics for bulk row processing (process 256+ cells per instruction)
+- [ ] Brian's Brain: 2-bit packed state, SIMD-friendly state transition
+- [ ] Benchmark: GoL 1280x1280 step time < 2ms (vs ~50ms current)
+
+### Part C — Adaptive Step Rate
+- [ ] Step rate decoupled from audio callback rate
+- [ ] Configurable simulation speed (steps/sec) independent of audio buffer size
+- [ ] Frame skipping when simulation falls behind (drop frames, don't block audio)
+
+**Testing Milestone:**
+- [ ] processBlock CPU time < 5% at 1280x1280 with all CPU algorithms
+- [ ] Zero audio glitches at 1280x1280 during 5-minute soak test
+- [ ] Bit-identical output between original and SIMD step implementations (GoL, HighLife)
+- [ ] TSAN clean: no data races between step thread and audio thread
+
+**RT Safety Checkpoint:**
+- [ ] No `engine->step()` calls in processBlock
+- [ ] No heap allocations in processBlock with CPU engines
+- [ ] Lock-free communication only between step thread and audio thread
+
+**Tag:** `v0.13.7`
+
+---
+
 ## Phase 14 — UI Layout + Panels (`v0.14.0`)
 
 **Goal:** Complete editor layout with all panels and controls.
