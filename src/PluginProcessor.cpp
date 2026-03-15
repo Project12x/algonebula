@@ -575,12 +575,13 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
     // Defer engine recreation to message thread (timer uses engine pointer)
-    cpuStepTimer_.stop();
+    // NOTE: stop() must also be on message thread -- Timer is not thread-safe
     int capturedAlgo = algoIdx;
     int capturedRows = gridRows;
     int capturedCols = gridCols;
     uint64_t capturedSeed = reseedRng;
     juce::MessageManager::callAsync([this, capturedAlgo, capturedRows, capturedCols, capturedSeed]() {
+      cpuStepTimer_.stop();
       engine = createEngine(capturedAlgo, capturedRows, capturedCols);
       engine->randomize(capturedSeed, 0.3f);
       gpuCompute.getBridge().updateFromCpu(engine->getGrid());
@@ -724,6 +725,8 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
   }
+
+
 
   // Auto-reseed logic moved after readLock in stepTriggeredThisBlock check
   if (stepTriggeredThisBlock) {
@@ -1542,6 +1545,11 @@ void AlgoNebulaProcessor::setStateInformation(const void *data,
   }
   stagnationCounter = 0;
   lastAliveCount = 0;
+
+  // Re-wire timer to the new engine (setStateInformation replaces engine)
+  cpuStepTimer_.stop();
+  cpuStepTimer_.setTargets(engine.get(), &gpuCompute.getBridge(), &cellEditQueue);
+  cpuStepTimer_.start();
 }
 
 //==============================================================================
