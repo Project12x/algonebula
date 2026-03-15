@@ -706,6 +706,68 @@ no longer directly represents what is heard. This phase bridges that gap.
 
 ---
 
+## Phase 13.6 — Large Grid Musical Intelligence (`v0.13.8`)
+
+**Goal:** Make large grids (256+) sound fundamentally different from small grids by extracting spatial, statistical, and temporal features that only emerge at scale.
+
+**Motivation:** Currently the trigger budget, voice count, and pitch mapping treat a 1280x1280 grid identically to a 64x64 one. Large grids produce rich emergent structures (flow fields, stable oscillators, center-of-mass drift, regional density variation) that are musically wasted. This phase extracts those features as modulation sources and harmonic drivers.
+
+### Part A — Regional Density Modulation (Foundation)
+- [ ] `GridAnalyzer` class computing per-region density on the message thread (timer callback, after step)
+- [ ] Configurable zone layout: 4 quadrants, 2x4 strips, or 3x3 grid (APVTS parameter)
+- [ ] Each zone density (0.0–1.0) exposed as a modulation source to existing `ModLFO` routing destinations
+- [ ] Route to: filter cutoff, effect wet mixes, reverb decay, chorus rate, LFO rate
+- [ ] Smooth zone values with one-pole low-pass to prevent jitter
+
+### Part B — Center-of-Mass Expression
+- [ ] Compute alive-cell center-of-mass (X, Y) each step as normalized 0.0–1.0 coordinates
+- [ ] X → global stereo field bias (shifts all voice panning toward center-of-mass side)
+- [ ] Y → pitch register bias (shifts `ScaleQuantizer` base octave up/down)
+- [ ] Smoothed with configurable inertia (fast tracking for Particle Swarm, slow for Lenia)
+- [ ] Optional: velocity of center-of-mass movement → dynamics/expression
+
+### Part C — Multi-Resolution Note Triggering
+- [ ] Coarse scan: divide grid into NxN macro blocks (e.g., 16x16)
+- [ ] Each block's density determines its "harmonic weight" — denser blocks bias toward chord tones
+- [ ] Fine scan: individual cell births within active blocks trigger notes as before
+- [ ] Block selection budget: only top-K densest blocks trigger notes (prevents uniform scatter)
+- [ ] At small grids (<64x64): bypass, use current single-resolution scan
+
+### Part D — Spatial Flow Detection
+- [ ] Compare grid at step N vs N-1 to detect bulk movement direction
+- [ ] Compute directional vector (dx, dy) from shifted cross-correlation or center-of-mass delta
+- [ ] Horizontal flow → ascending/descending pitch tendency (melodic contour)
+- [ ] Vertical flow → filter sweep direction
+- [ ] Convergence (activity contracting) → crescendo; expansion → diminuendo
+- [ ] Requires grid history (already have `snapshotPrev()`)
+
+### Part E — Pattern Lifespan → Voice Character
+- [ ] Track stable structures: cells alive for >N consecutive steps
+- [ ] Long-lived cells (>20 steps) → longer sustain, slower attack, drone-like
+- [ ] Short-lived cells (<3 steps) → staccato, fast attack, percussive
+- [ ] Map cell age into envelope parameters at trigger time
+- [ ] Already have `Grid::getAge()` — extend to longer tracking window
+
+### Part F — 2D Spatial FFT Spectral Mapping (Advanced)
+- [ ] Run 2D FFT on grid (downsampled to 128x128 for performance)
+- [ ] Low spatial frequencies (large structures) → bass register emphasis
+- [ ] High spatial frequencies (fine detail) → treble register emphasis
+- [ ] FFT magnitude per frequency band → volume scaling per octave
+- [ ] Only meaningful at >128x128 grid sizes
+- [ ] Consider FFTW or signalsmith FFT for efficient computation
+
+**Implementation Order:** A → B → E → C → D → F (increasing complexity)
+
+**Testing Milestone:**
+- [ ] A/B test: same CA algorithm at 64x64 vs 1280x1280 produces audibly different musical output
+- [ ] Regional density modulation produces smooth, musical parameter sweeps
+- [ ] Center-of-mass tracking produces audible stereo and pitch movement
+- [ ] No performance regression (all analysis runs on message thread timer)
+
+**Tag:** `v0.13.8`
+
+---
+
 ## Phase 14 — UI Layout + Panels (`v0.14.0`)
 
 **Goal:** Complete editor layout with all panels and controls.
