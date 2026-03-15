@@ -101,6 +101,56 @@ public:
   /// Get current scale.
   Scale getCurrentScale() const { return currentScale; }
 
+  /// Quantize a raw MIDI note to the nearest scale degree.
+  /// Searches +-6 semitones for the closest note in the current scale.
+  /// Used for re-quantizing after leap clamping.
+  int quantizeToNearest(int midiNote) const {
+    const auto &degrees = scaleDegrees[static_cast<int>(currentScale)];
+    int degreeCount = scaleDegreeCounts[static_cast<int>(currentScale)];
+    if (degreeCount <= 0)
+      return midiNote; // Chromatic: already valid
+
+    int bestNote = midiNote;
+    int bestDist = 999;
+    for (int offset = -6; offset <= 6; ++offset) {
+      int candidate = midiNote + offset;
+      if (candidate < 0 || candidate > 127)
+        continue;
+      int pitchClass = (candidate - currentRoot) % 12;
+      if (pitchClass < 0)
+        pitchClass += 12;
+      // Check if this pitch class is in the scale
+      for (int d = 0; d < degreeCount; ++d) {
+        if (degrees[d] == pitchClass) {
+          int dist = std::abs(offset);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestNote = candidate;
+          }
+          break;
+        }
+      }
+    }
+    return bestNote;
+  }
+
+  /// Clamp the interval between consecutive notes to maxLeap semitones.
+  /// Re-quantizes to the nearest scale degree after clamping.
+  /// @param midiNote The candidate MIDI note.
+  /// @param lastNote The previously triggered MIDI note (-1 or 0 = no history).
+  /// @param maxLeap Maximum allowed interval in semitones (0 = disabled).
+  /// @return Clamped and re-quantized MIDI note.
+  int clampLeap(int midiNote, int lastNote, int maxLeap) const {
+    if (maxLeap <= 0 || lastNote <= 0)
+      return midiNote;
+    int leap = std::abs(midiNote - lastNote);
+    if (leap <= maxLeap)
+      return midiNote;
+    int dir = (midiNote > lastNote) ? 1 : -1;
+    int clamped = lastNote + dir * maxLeap;
+    return quantizeToNearest(clamped);
+  }
+
   /// Check if two MIDI notes form a consonant interval.
   /// Consonant: unison(0), m3(3), M3(4), P4(5), P5(7), m6(8), M6(9), octave(12)
   /// Dissonant: m2(1), M2(2), tritone(6), m7(10), M7(11)

@@ -373,6 +373,16 @@ AlgoNebulaProcessor::createParameterLayout() {
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID("lfo2Dest", 1), "LFO 2 Dest", 0, 17, 0));
 
+  // --- Musicality Hard Rules ---
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("maxLeap", 1), "Max Leap", 0, 24, 12));
+
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("baseOctave", 1), "Base Octave", 1, 6, 3));
+
+  layout.add(std::make_unique<juce::AudioParameterInt>(
+      juce::ParameterID("octaveRange", 1), "Octave Range", 1, 5, 3));
+
   // --- GPU Acceleration (opt-in, default OFF) ---
   layout.add(std::make_unique<juce::AudioParameterBool>(
       juce::ParameterID("gpuAccel", 1), "GPU Acceleration", false));
@@ -904,6 +914,14 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     float engineGainScale = engine->getGainScale();
     float pitchGravity = apvts.getRawParameterValue("pitchGravity")->load();
 
+    // Musicality hard rules params
+    int maxLeap = static_cast<int>(
+        apvts.getRawParameterValue("maxLeap")->load());
+    int baseOctave = static_cast<int>(
+        apvts.getRawParameterValue("baseOctave")->load());
+    int octaveRange = static_cast<int>(
+        apvts.getRawParameterValue("octaveRange")->load());
+
     // Calculate step interval in samples for gate time
     double stepIntervalSec = clock.getStepIntervalSeconds();
     int stepIntervalSamples =
@@ -967,9 +985,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             } else if (pitchGravity > 0.0f) {
               // --- Pitch gravity: bias toward chord tones ---
               midiNote = quantizer.quantizeWeighted(
-                  row, col, 3, 3, bCols, pitchGravity, musicRng);
+                  row, col, baseOctave, octaveRange, bCols, pitchGravity, musicRng);
             } else {
-              midiNote = quantizer.quantize(row, col, 3, 3, bCols);
+              midiNote = quantizer.quantize(row, col, baseOctave, octaveRange, bCols);
             }
 
             // --- Consonance filter: snap or reject dissonant intervals ---
@@ -996,6 +1014,15 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                 }
               }
             }
+
+            // --- Max leap clamping: constrain interval from last note ---
+            if (maxLeap > 0) {
+              midiNote = quantizer.clampLeap(midiNote, lastTriggeredMidiNote, maxLeap);
+            }
+
+            // --- Musical range clamp: C2(36) to C7(96) safety ---
+            if (midiNote < 36) midiNote = 36;
+            if (midiNote > 96) midiNote = 96;
 
             lastTriggeredMidiNote = midiNote;
             float frequency = tuning.getFrequency(midiNote);
