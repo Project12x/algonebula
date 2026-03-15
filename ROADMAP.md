@@ -879,3 +879,38 @@ into non-rectilinear forms.
 
 ### v3.1 — Platform Evolution
 - MPE support, network sync, mod matrix expansion
+
+### v3.2 — 3D Cellular Automata
+
+Extend the CA engine from 2D grids to 3D voxel volumes. The product is
+called Algo **Nebula** — a nebula is a 3D volume of gas and light.
+
+**3D CA Generation (WebGPU Compute):**
+- [ ] Voxel grid engine: 64x64x64 to 128x128x128 (262K-2M cells)
+- [ ] 26-neighbor Moore neighborhood (3D)
+- [ ] 3D Game of Life variants (e.g., 4/4/5/M — crystals, pulsing blobs)
+- [ ] 3D Lenia: continuous-state volumetric "creatures"
+- [ ] 3D Reaction-Diffusion: organic tubes, branching coral structures
+- [ ] 3D Particle Swarm: orbits, spiral galaxies, flocking
+
+**3D Visualization (WebGPU Render):**
+- [ ] Ray marching (volumetric): translucent density field, birth=light pulses,
+  dead=transparent. The CA renders as a glowing nebula
+- [ ] Marching cubes (isosurface): smooth organic blob/coral surfaces from
+  density thresholds. CA grows like a living organism
+- [ ] Point cloud / instanced spheres: each alive cell as a glowing point,
+  color=state/age. Fast, scalable, GPU-instanced
+- [ ] Sliced view: animated 2D cross-sections sweeping through Z, layered
+  with transparency (MRI-style)
+- [ ] Hybrid: volumetric core + particle emission at birth surfaces
+- [ ] Orbitable camera with zoom/pan
+
+**3D Musical Mapping:**
+- [ ] Three-axis mapping: X=pitch, Y=timbre/filter, Z=time/harmony
+- [ ] Time-slicing: Z as time axis, playhead sweeps through volume.
+  CA evolves in 3D space, music reads one slice at a time
+- [ ] Volumetric density: divide volume into pitch regions, density per
+  region controls note density (3D mixing desk)
+- [ ] Spatial harmony: cells close in 3D space produce harmonically related
+  notes. Clusters form chords. Depth adds voice separation
+- [ ] Post-processing constraint pipeline runs on all 3D outputs
