@@ -3,6 +3,18 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.6] - 2026-03-15
+
+### Fixed
+
+- **CpuStepTimer not re-wired on state restore**: `setStateInformation()` recreated the engine but never updated the timer's engine pointer, leaving it pointing at a destroyed object. Timer now calls `stop()/setTargets()/start()` after state restore.
+- **Timer stop from audio thread**: `cpuStepTimer_.stop()` in engine recreation was called directly from `processBlock()` (audio thread). `juce::Timer` is not thread-safe — moved `stop()` inside `callAsync` lambda to run on message thread.
+
+### Changed
+
+- **Lenia parameter tuning** (CPU + GPU): `kRadius` 3→5 (wider 11×11 neighborhood); `kSigma` 0.015→0.045 (3× wider growth window). Prevents rapid die-off and enables self-sustaining organic blob structures.
+- **Lenia initial state**: GPU seeding changed from single center Gaussian blob to 3–7 random Gaussian blobs (more at larger grids) for richer startup dynamics.
+
 ## [0.13.5] - 2026-03-15
 
 ### Added
