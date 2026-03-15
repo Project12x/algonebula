@@ -473,7 +473,8 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
 
   // Initialize CPU step timer (runs engine->step() on message thread)
   cpuStepTimer_.setTargets(engine.get(), &gpuCompute.getBridge(), &cellEditQueue);
-  cpuStepTimer_.start();
+  // Timer must be started from message thread (prepareToPlay is audio thread)
+  juce::MessageManager::callAsync([this]() { cpuStepTimer_.start(); });
 
   // Initialize clock
   clock.reset(sampleRate);
