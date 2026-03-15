@@ -561,6 +561,94 @@ Explicit pause-and-review checkpoints:
 
 ---
 
+## Phase 13.5 — Musicality Hardening (`v0.13.5`)
+
+**Goal:** Upgrade generative musicality from probabilistic (Stage 1) toward
+rule-based (Stage 2), porting battle-tested patterns from Poompatoom's
+`HarmonyEngine`. See `implementation_plan.md` for full design.
+
+> [!NOTE]
+> All features below are confirmed **IMPLEMENTED and working** in Poompatoom.
+> Poompatoom-PLANNED features (Novelty Injection, phrase cadences, glissando)
+> are explicitly excluded — only battle-tested patterns are ported.
+
+### Phase 13.5a — Hard Rules (Tier 1)
+
+- [ ] `maxLeap` APVTS param (int, 0-24, default 12): clamp consecutive note intervals
+- [ ] `clampLeap()` in ScaleQuantizer: re-quantize after clamping
+- [ ] `baseOctave` APVTS param (int, 1-6, default 3): user-controllable lowest octave
+- [ ] `octaveRange` APVTS param (int, 1-5, default 3): user-controllable octave span
+- [ ] Musical range clamp: final C2(36)-C7(96) safety before `noteOn`
+
+### Phase 13.5b — Improved Soft Preferences (Tier 3)
+
+- [ ] Weighted dissonance scoring: tritone=3, m2/M7=2, M2/m7=1 (replaces binary consonance)
+- [ ] `dissonanceWeight()` and `scoreDissAgainstAll()` in ScaleQuantizer
+- [ ] Consonance filter upgrade: score-based search +-1 scale step, no-thrashing guard
+- [ ] Stepwise melodic inertia: 50% repeat / 50% walk 1-2 scale degrees with direction tracking
+- [ ] `stepwiseFrom()` in ScaleQuantizer
+- [ ] `lastMelodicDirection_` member for continuity
+
+### Phase 13.5c — Key Detection
+
+- [ ] Pitch histogram: 12-slot decaying array (0.995x per block), RT-safe
+- [ ] `detectedKey_` member: pitch class with highest histogram weight
+**Tag:** `v0.13.5`
+
+### Phase 13.5d — Musicality UI Section
+
+- [ ] `musicalityBypass` APVTS param (bool, default off): bypasses pitch constraints only
+  - **Always active:** scale quantization, range clamp (C2-C7), max triggers
+  - **Bypassed:** consonance, pitch gravity, melodic inertia, max leap, dissonance scoring
+- [ ] New "MUSICALITY" section in editor layout (between Anti-cacophony and Humanize)
+- [ ] Bypass toggle button at section header (lit when active, dims all musicality knobs)
+- [ ] **Migrate existing controls into Musicality section:**
+  - `consonance` (from Anti-cacophony)
+  - `pitchGravity` (from Anti-cacophony)
+  - `melodicInertia` (from Humanize)
+- [ ] **Add new knobs:**
+  - `maxLeap` knob (0-24 semitones)
+  - `baseOctave` knob (1-6)
+  - `octaveRange` knob (1-5)
+- [ ] Key detection indicator: read-only label showing detected key (e.g. "Key: C")
+- [ ] Rename remaining Anti-cacophony section to "DENSITY" (maxTrigs, restProb)
+- [ ] Update tooltips for migrated + new controls
+- [ ] **Manual: bypass toggle mutes all pitch constraints, raw notes come through**
+
+**New APVTS Parameters:**
+
+| Parameter | Type | Range | Default |
+|-----------|------|-------|---------|
+| `maxLeap` | Int | 0-24 | 12 |
+| `baseOctave` | Int | 1-6 | 3 |
+| `octaveRange` | Int | 1-5 | 3 |
+| `musicalityBypass` | Bool | on/off | off |
+
+**Testing Milestone:**
+- [ ] 12 new unit tests in HeadlessTest.cpp:
+  - clampLeap: within/exceeds/disabled (3 tests)
+  - Musical range clamp (1 test)
+  - Dissonance weights: tritone/m2/P5 + cumulative (4 tests)
+  - Stepwise: up/down (2 tests)
+  - Key detection: C input / decay (2 tests)
+- [ ] **Manual: maxLeap=3 produces stepwise melodies, 24 allows jumps**
+- [ ] **Manual: A/B consonance filter — weighted sounds smoother**
+- [ ] **Manual: melodicInertia=1.0 forms lines, not drones**
+
+**Poompatoom Cross-Reference:**
+
+| Feature | Poompatoom Source | Lines |
+|---------|-------------------|-------|
+| Max leap | `applyHardConstraints()` | 937-948 |
+| MIDI clamp | `update()` | 700-703 |
+| Dissonance scoring | `applyVoiceLeading()` | 1171-1204 |
+| Stepwise motion | `applyVoiceLeading()` | 1079-1098 |
+| Key detection | `updateKeyDetection()` | 1334-1358 |
+
+**Tag:** `v0.13.5`
+
+---
+
 ## Phase 14 — UI Layout + Panels (`v0.14.0`)
 
 **Goal:** Complete editor layout with all panels and controls.
@@ -682,6 +770,15 @@ Explicit pause-and-review checkpoints:
 - Wavetable oscillator, filter envelope, filter key tracking
 - Musical gravity, octave doubling, accent patterns, articulation variation
 - Custom microtuning (per-degree cent offsets)
+
+### v2.3 — Advanced Musicality (Poompatoom Stage 2)
+- **Tension/resolution tracking**: stagnation + root variety scoring (port from Poompatoom)
+- **Markov-informed root movement**: adapt 7x7 genre matrices for CA context
+  - Requires defining "chord degree" for cell-birth events
+- **Parallel 5th/8ve avoidance**: pairwise voice independence checks
+- **Chord-tone onset preference**: nudge new notes toward root/3rd/5th
+- **Novelty injection system**: chromatic passing tones, borrowed chords, rhythmic displacement
+  - Note: NOT yet implemented in Poompatoom — requires original design work
 
 ### v3.0 — Experimental Algorithms (Tier 3)
 - Markov Chain, Predator-Prey, Neural CA, DLA, L-System Grid

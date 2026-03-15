@@ -32,117 +32,219 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
     if (idx >= 0 && idx < static_cast<int>(factoryPresets.size()))
       factoryPresets[static_cast<size_t>(idx)].apply(processor.getAPVTS());
   };
-  presetCombo.setTooltip("Factory preset: load a curated parameter set");
+  presetCombo.setTooltip(
+      "Factory preset: instantly load a curated combination of algorithm, scale, "
+      "envelope, effects, and musicality settings. Great starting points for " 
+      "exploration -- tweak any parameter after loading.");
   addAndMakeVisible(presetCombo);
 
   // --- Top selectors ---
   setupCombo(algorithmCombo, "Algorithm", "algorithm");
   algorithmCombo.combo.setTooltip(
-      "Cellular automaton algorithm driving the grid");
+      "Cellular automaton engine. Each algorithm produces different visual and "
+      "musical patterns: Game of Life (rhythmic pulses), Brian's Brain (rapid "
+      "bursts), Cyclic CA (rotating spirals), Reaction-Diffusion (slow evolving "
+      "textures), Lenia (organic morphing), Brownian Field (scattered ambient), "
+      "Particle Swarm (directional movement).");
   setupCombo(scaleCombo, "Scale", "scale");
-  scaleCombo.combo.setTooltip("Musical scale for pitch quantization");
+  scaleCombo.combo.setTooltip(
+      "Musical scale: constrains all generated notes to this scale. Chromatic = "
+      "all 12 notes, Major/Minor = Western harmony, Pentatonic = safe/consonant, "
+      "Whole Tone = dreamy/ambiguous, Blues = gritty character. Every note the "
+      "engine produces is quantized to this scale.");
   setupCombo(keyCombo, "Key", "key");
-  keyCombo.combo.setTooltip("Root key of the scale");
+  keyCombo.combo.setTooltip(
+      "Root key: the tonal center of the scale. Change this to transpose all "
+      "output up or down. C is standard, but try different keys to match other "
+      "instruments or find a register you prefer.");
   setupCombo(waveshapeCombo, "Wave", "waveshape");
-  waveshapeCombo.combo.setTooltip("Oscillator waveform shape");
+  waveshapeCombo.combo.setTooltip(
+      "Oscillator waveform: Sine (pure/warm), Triangle (soft/mellow), Saw "
+      "(bright/rich harmonics), Pulse (hollow/reedy), Sine+Oct (organ-like), "
+      "Fifth Stack (power chord), Pad (detuned unison shimmer), Bell (metallic "
+      "FM tones). Use Waveshape Spread to mix multiple shapes across voices.");
 
   // --- Clock ---
   setupKnob(bpmKnob, "BPM", "bpm");
-  bpmKnob.slider.setTooltip("Tempo in beats per minute (40-300)");
+  bpmKnob.slider.setTooltip(
+      "Tempo (40-300 BPM): controls how fast the cellular automaton steps. "
+      "Lower = slower evolution, more ambient. Higher = faster patterns, more "
+      "rhythmic. Interacts with Clock Division to set actual step rate.");
   setupCombo(clockDivCombo, "Clock", "clockDiv");
-  clockDivCombo.combo.setTooltip("Clock division: how often the grid steps");
+  clockDivCombo.combo.setTooltip(
+      "Clock division: subdivides the BPM tempo. 1/1 = one step per beat, "
+      "1/4 = four steps per beat, 1/16 = very rapid stepping. Lower divisions "
+      "give the grid more time to evolve between note triggers.");
   setupKnob(swingKnob, "Swing", "swing");
   swingKnob.slider.setTooltip(
-      "Swing feel: offsets every other step (0% = straight)");
+      "Swing (0-100%): delays every other grid step for a shuffle feel. "
+      "0% = perfectly straight timing, 67% = classic triplet swing, 100% = "
+      "extreme dotted-note feel. Adds groove and human feel to the output.");
 
   // --- Envelope ---
   setupKnob(attackKnob, "Atk", "attack");
-  attackKnob.slider.setTooltip("Attack time: how quickly notes fade in");
+  attackKnob.slider.setTooltip(
+      "Attack (0-2s): how quickly notes reach full volume. Short = percussive "
+      "plucks, long = slow swells. Try long attack + long release for pad-like "
+      "ambient textures.");
   setupKnob(holdKnob, "Hold", "hold");
-  holdKnob.slider.setTooltip("Hold time: sustain at full level before decay");
+  holdKnob.slider.setTooltip(
+      "Hold (0-2s): how long the note stays at peak volume before decay begins. "
+      "0 = immediate decay after attack, higher = more sustained presence. "
+      "Useful for bell-like or organ sounds.");
   setupKnob(decayKnob, "Dcy", "decay");
   decayKnob.slider.setTooltip(
-      "Decay time: fade from full level to sustain level");
+      "Decay (0-5s): how quickly the note fades from peak to sustain level. "
+      "Short = snappy, rhythmic. Long = gradual fade, cinematic. Works with "
+      "Sustain to shape the body of each note.");
   setupKnob(sustainKnob, "Sus", "sustain");
-  sustainKnob.slider.setTooltip("Sustain level: volume while note is held");
+  sustainKnob.slider.setTooltip(
+      "Sustain (0-100%): volume level the note holds at after decay. 0% = note "
+      "dies after decay (percussive), 100% = no decay at all (organ-like). "
+      "Most ambient sounds work well around 30-60%.");
   setupKnob(releaseKnob, "Rel", "release");
-  releaseKnob.slider.setTooltip("Release time: fade out after note ends");
+  releaseKnob.slider.setTooltip(
+      "Release (0-10s): how long the note rings after the cell dies. Short = "
+      "notes cut off cleanly, long = notes fade out gradually creating overlapping "
+      "textures. High release + reverb = lush ambient washes.");
 
   // --- Filter ---
   setupKnob(filterCutoffKnob, "Cutoff", "filterCutoff");
   filterCutoffKnob.slider.setTooltip(
-      "Filter cutoff frequency (20 Hz - 20 kHz)");
+      "Filter cutoff (20 Hz - 20 kHz): frequency where the filter begins to take "
+      "effect. Low values = dark/muffled, high = bright/open. In LP mode, "
+      "everything above cutoff is reduced. The grid density also modulates "
+      "this in real-time.");
   setupKnob(filterResKnob, "Reso", "filterRes");
   filterResKnob.slider.setTooltip(
-      "Filter resonance: emphasis at cutoff frequency");
+      "Filter resonance (0-100%): boosts frequencies near the cutoff, creating "
+      "a vocal-like quality. Low = gentle shaping, high = sharp resonant peak. "
+      "High resonance + sweeping cutoff = classic synth filter sound.");
   setupCombo(filterModeCombo, "Filter", "filterMode");
   filterModeCombo.combo.setTooltip(
-      "Filter type: Low Pass / High Pass / Band Pass / Notch");
+      "Filter type: LP (low pass) = removes highs for warmth, HP (high pass) = "
+      "removes lows for thinness/clarity, BP (band pass) = isolates a frequency "
+      "band, Notch = removes one band. LP is the most commonly used for ambient.");
 
   // --- Mix ---
   setupKnob(noiseLevelKnob, "Noise", "noiseLevel");
-  noiseLevelKnob.slider.setTooltip("White noise layer level");
+  noiseLevelKnob.slider.setTooltip(
+      "Noise level (0-100%): mixes white noise into each voice. Adds texture, "
+      "breathiness, or percussive attack to the sound. Low amounts add air, "
+      "high amounts create noise-based textures or wind effects.");
   setupKnob(waveshapeSpreadKnob, "WSpread", "waveshapeSpread");
   waveshapeSpreadKnob.slider.setTooltip(
-      "Waveshape spread: 0 = all voices use selected wave, 1 = cycle shapes");
+      "Waveshape spread (0-100%): distributes different waveforms across voices. "
+      "0% = all voices use the selected waveshape, 100% = each voice cycles "
+      "through different shapes (sine, saw, pulse, etc). Creates richer, more "
+      "complex textures from the same notes.");
   setupKnob(subLevelKnob, "Sub", "subLevel");
   subLevelKnob.slider.setTooltip(
-      "Sub-oscillator level (sine, tracks lowest voice)");
+      "Sub-oscillator level (0-100%): adds a pure sine wave 1-2 octaves below "
+      "the lowest active voice. Adds weight and bass foundation without muddiness. "
+      "Essential for filling out thin patches or creating deep drones.");
   setupCombo(subOctaveCombo, "Sub Oct", "subOctave");
   subOctaveCombo.combo.setTooltip(
-      "Sub-oscillator octave: -1 or -2 octaves below");
+      "Sub-oscillator octave: -1 oct = one octave below (warm thickening), "
+      "-2 oct = two octaves below (deep sub-bass rumble). Choose based on how "
+      "much low-end weight you want.");
 
   // --- Tuning ---
   setupCombo(tuningCombo, "Tuning", "tuning");
   tuningCombo.combo.setTooltip(
-      "Tuning system: 12-TET, Just Intonation, Pythagorean");
+      "Tuning system: 12-TET = standard equal temperament (familiar), Just "
+      "Intonation = pure ratio intervals (beatless chords, slightly different "
+      "feel), Pythagorean = pure 5ths (bright, medieval character). Most people "
+      "prefer 12-TET. Try Just for ambient 5th-based harmony.");
   setupKnob(refPitchKnob, "A4 Hz", "refPitch");
   refPitchKnob.slider.setTooltip(
-      "Reference pitch for A4 (420-460 Hz, standard = 440)");
+      "A4 reference pitch (420-460 Hz): the tuning standard. 440 Hz = concert "
+      "pitch, 432 Hz = popular alternative (slightly warmer), 442-444 Hz = "
+      "orchestral bright tuning. Shifts all notes up or down together.");
 
   // --- Ambient ---
   setupKnob(droneSustainKnob, "Drone", "droneSustain");
   droneSustainKnob.slider.setTooltip(
-      "Drone sustain: how long voices ring after cell death");
+      "Drone sustain (0-100%): extends voice lifetime beyond cell death. 0% = "
+      "notes stop immediately when cells die, 100% = voices ring indefinitely, "
+      "creating evolving drone layers. Higher values build up dense ambient "
+      "washes as notes overlap.");
   setupKnob(noteProbKnob, "Prob", "noteProbability");
-  noteProbKnob.slider.setTooltip("Note probability: chance each cell triggers "
-                                 "a note (0 = silent, 1 = always)");
+  noteProbKnob.slider.setTooltip(
+      "Note probability (0-100%): chance that each active cell triggers a note. "
+      "100% = every cell plays, 50% = half are skipped randomly, creating "
+      "sparser textures. Lower values = more spacious, meditative. Works with "
+      "Rest Probability for rhythmic control.");
   setupKnob(gateTimeKnob, "Gate", "gateTime");
-  gateTimeKnob.slider.setTooltip("Gate time: note duration as fraction of step "
-                                 "(1 = legato, 0.5 = staccato)");
+  gateTimeKnob.slider.setTooltip(
+      "Gate time (0-100%): note duration relative to step length. 100% = legato "
+      "(notes fill entire step, overlapping), 50% = staccato (short detached "
+      "notes), 10% = ultra-short percussive hits. Lower values create more "
+      "rhythmic, bouncy patterns.");
 
   // --- Humanize ---
   setupKnob(strumSpreadKnob, "Strum", "strumSpread");
   strumSpreadKnob.slider.setTooltip(
-      "Strum spread: staggers note onsets across columns (0-50 ms)");
+      "Strum spread (0-50 ms): delays note onsets based on grid column position, "
+      "like strumming a guitar. 0 = all notes hit simultaneously, higher = "
+      "cascading left-to-right spread. Adds a natural, organic quality to "
+      "dense chords.");
   setupKnob(melodicInertiaKnob, "Inertia", "melodicInertia");
   melodicInertiaKnob.slider.setTooltip(
-      "Melodic inertia: chance to repeat the last pitch instead of a new one");
+      "Melodic inertia (0-100%): tendency to repeat or stay near the last pitch. "
+      "0% = every note is independent (chaotic), 50% = mix of repetition and "
+      "movement, 100% = notes cluster around the same pitch (droning). "
+      "Creates melodic continuity from otherwise random patterns.");
   setupKnob(roundRobinKnob, "RndRbn", "roundRobin");
-  roundRobinKnob.slider.setTooltip("Round-robin variation depth");
+  roundRobinKnob.slider.setTooltip(
+      "Round-robin (0-100%): cycles voice allocation to avoid the same voice "
+      "retriggering repeatedly. Higher values = more variation in which voice "
+      "plays each note, preventing robotic repetition and adding natural feel.");
   setupKnob(velHumanizeKnob, "VelHum", "velocityHumanize");
   velHumanizeKnob.slider.setTooltip(
-      "Velocity humanize: random velocity offset for natural dynamics");
+      "Velocity humanize (0-100%): adds random variation to note volume. "
+      "0% = all notes at equal volume (mechanical), higher = some notes louder, "
+      "some softer (human feel). Creates dynamic contrast and prevents the "
+      "flat, lifeless sound of uniform velocity.");
 
   // --- Global ---
   setupKnob(masterVolumeKnob, "Volume", "masterVolume");
-  masterVolumeKnob.slider.setTooltip("Master output volume (0-200%)");
+  masterVolumeKnob.slider.setTooltip(
+      "Master volume (0-200%): final output level. 100% = unity gain, above "
+      "100% = boost (watch for clipping). The built-in safety limiter prevents "
+      "dangerous levels, but lower is generally safer for mixing.");
   setupKnob(voiceCountKnob, "Voices", "voiceCount");
-  voiceCountKnob.slider.setTooltip("Maximum polyphony (1-8 voices)");
+  voiceCountKnob.slider.setTooltip(
+      "Max voices (1-8): maximum simultaneous notes. 1 = monophonic (one note "
+      "at a time), 4 = moderate density, 8 = full polyphony. More voices = "
+      "richer texture but higher CPU. Dense algorithms may sound better with "
+      "fewer voices.");
 
   // --- Anti-cacophony ---
   setupKnob(consonanceKnob, "Consonance", "consonance");
   consonanceKnob.slider.setTooltip(
-      "Consonance filter: rejects dissonant intervals (0 = off, 1 = strict)");
+      "Consonance filter (0-100%): prevents clashing intervals between "
+      "simultaneous notes. 0% = anything goes (dissonant/experimental), 50% = "
+      "mild filtering (some tension allowed), 100% = strict consonance "
+      "(only 3rds, 5ths, octaves). Higher = safer harmony, lower = edgier.");
   setupKnob(maxTrigsKnob, "MaxTrigs", "maxTriggersPerStep");
   maxTrigsKnob.slider.setTooltip(
-      "Max triggers per step: caps simultaneous note-ons (1-8)");
+      "Max triggers per step (1-8): limits how many new notes can start in one "
+      "grid step. Prevents overwhelming bursts from dense algorithms. 1-2 = "
+      "sparse, melodic, 4-6 = moderate chordal, 8 = full density. Lower values "
+      "tame chaotic algorithms into musical results.");
   setupKnob(restProbKnob, "Rest%", "restProbability");
   restProbKnob.slider.setTooltip(
-      "Rest probability: chance of full-step silence for rhythmic breathing");
+      "Rest probability (0-100%): chance that an entire grid step is silent. "
+      "Creates rhythmic breathing and space in the output. 0% = constant "
+      "notes, 30% = occasional pauses, 80% = mostly silence with sparse notes. "
+      "Essential for preventing wall-of-sound fatigue.");
   setupKnob(pitchGravityKnob, "Gravity", "pitchGravity");
   pitchGravityKnob.slider.setTooltip(
-      "Pitch gravity: biases notes toward root, 5th, and 3rd chord tones");
+      "Pitch gravity (0-100%): pulls notes toward chord tones (root, 3rd, 5th) "
+      "of the selected scale. 0% = notes land on any scale degree equally, "
+      "100% = strong bias toward root and 5th (more tonal/grounded). Higher "
+      "values create a stronger sense of key center.");
 
   // --- CPU Meter ---
   cpuMeterLabel.setFont(nebulaLnF.getMonoFont(11.0f));
@@ -166,7 +268,9 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
     processor.engineRunning.store(!running, std::memory_order_relaxed);
     playPauseBtn.setButtonText(running ? "Play" : "Pause");
   };
-  playPauseBtn.setTooltip("Start or pause the cellular automaton");
+  playPauseBtn.setTooltip(
+      "Play/Pause: starts or stops the grid evolution. When paused, the grid "
+      "freezes and no new notes trigger, but existing voices finish naturally.");
   addAndMakeVisible(playPauseBtn);
 
   clearBtn.setColour(juce::TextButton::buttonColourId,
@@ -176,7 +280,9 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   clearBtn.onClick = [this]() {
     processor.clearRequested.store(true, std::memory_order_relaxed);
   };
-  clearBtn.setTooltip("Clear the grid (kill all cells)");
+  clearBtn.setTooltip(
+      "Clear: kills all cells in the grid. Active voices will fade out based on "
+      "release time. The grid remains empty until you reseed or draw new cells.");
   addAndMakeVisible(clearBtn);
 
   reseedBtn.setColour(juce::TextButton::buttonColourId,
@@ -186,7 +292,10 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   reseedBtn.onClick = [this]() {
     processor.reseedSymmetricRequested.store(true, std::memory_order_relaxed);
   };
-  reseedBtn.setTooltip("Reseed the grid with a random symmetric pattern");
+  reseedBtn.setTooltip(
+      "Reseed: fills the grid with a new random symmetric pattern based on the "
+      "current seed and symmetry mode. Good for generating fresh starting "
+      "points when the current pattern stagnates.");
   addAndMakeVisible(reseedBtn);
 
   // --- Seed display ---
@@ -231,7 +340,9 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   freezeBtn.setColour(juce::TextButton::textColourOnId,
                       NebulaColours::text_bright);
   freezeBtn.setTooltip(
-      "Freeze the grid: stop CA evolution while voices sustain");
+      "Freeze: halts the cellular automaton evolution while active voices "
+      "continue to sustain. The grid pattern is locked in place -- useful "
+      "for holding a particular harmonic moment or creating a static drone.");
   freezeAttach =
       std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
           processor.getAPVTS(), "freeze", freezeBtn);
@@ -255,7 +366,10 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
         juce::String::toHexString(static_cast<juce::int64>(newSeed)),
         juce::dontSendNotification);
   };
-  newSeedBtn.setTooltip("Generate a new random seed and reseed the grid");
+  newSeedBtn.setTooltip(
+      "New Seed: generates a fresh random seed number and immediately reseeds "
+      "the grid. Each seed produces a unique but reproducible pattern -- write "
+      "down seeds you like to recreate them later.");
   addAndMakeVisible(newSeedBtn);
 
   // --- FX popout button ---
@@ -272,7 +386,11 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
       effectsWindow->toFront(true);
     }
   };
-  fxBtn.setTooltip("Open the effects panel (chorus, delay, reverb, stereo)");
+  fxBtn.setTooltip(
+      "Effects panel: opens a separate window for chorus, delay, reverb, and "
+      "stereo width controls. Each effect has its own on/off toggle, mix level, "
+      "and parameters. Effects can dramatically change the character of the "
+      "output.");
   addAndMakeVisible(fxBtn);
 
   // --- GPU Acceleration toggle ---
@@ -286,11 +404,15 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
   gpuAccelBtn.setColour(juce::TextButton::textColourOnId,
                         NebulaColours::text_bright);
   gpuAccelBtn.setTooltip(
-      "GPU Acceleration: offload CA simulation to GPU compute shaders");
+      "GPU Acceleration: offloads cellular automaton simulation to the GPU via "
+      "WebGPU compute shaders. Enables higher-fidelity simulations for "
+      "Lenia, Reaction-Diffusion, and Particle Swarm. Falls back to CPU if "
+      "GPU is unavailable. May improve performance on larger grid sizes.");
   gpuAccelAttach =
       std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
           processor.getAPVTS(), "gpuAccel", gpuAccelBtn);
   addAndMakeVisible(gpuAccelBtn);
+
   // --- Factory pattern selector ---
   patternLabel.setText("Pattern", juce::dontSendNotification);
   patternLabel.setFont(nebulaLnF.getMonoFont(10.0f));
@@ -306,7 +428,11 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
     if (idx >= 0)
       processor.loadPatternRequested.store(idx, std::memory_order_relaxed);
   };
-  patternCombo.setTooltip("Load a classic Game of Life pattern into the grid");
+  patternCombo.setTooltip(
+      "Factory patterns: load classic Game of Life structures. Glider = small "
+      "moving pattern, LWSS = larger spaceship, R-Pentomino = chaotic growth "
+      "from 5 cells, Pulsar = symmetric oscillator, Gosper Gun = continuously "
+      "produces gliders. Works best with the Game of Life algorithm.");
   addAndMakeVisible(patternCombo);
 
   // --- MIDI Keyboard ---
