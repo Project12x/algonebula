@@ -615,6 +615,22 @@ rule-based (Stage 2), porting battle-tested patterns from Poompatoom's
 - [ ] Update tooltips for migrated + new controls
 - [ ] **Manual: bypass toggle mutes all pitch constraints, raw notes come through**
 
+### Phase 13.5e — Visual-Audio Coherence
+
+As musicality rules reshape pitches post-quantization, the grid visualization
+no longer directly represents what is heard. This phase bridges that gap.
+
+- [x] **Bypass toggle** (done): lets users hear raw grid-to-note mapping
+- [ ] **Triggered cell highlighting**: flash/glow cells that produced triggers
+  this step (ring buffer of (row, col) pairs, shader overlay or UI flash)
+- [ ] **Note trail overlay**: compact piano roll sidebar or bottom strip showing
+  actual triggered MIDI pitches in real time (scrolling left)
+- [ ] **Grid-reactive pitch mapping**: constrain cell selection or column-to-pitch
+  mapping so grid position correlates with heard pitch (columns = pitch axis,
+  rows = time/density). Constraints reshape which cells fire, not notes after
+- [ ] **Dual view**: CA panel + musical view panel (scale degree ladder, pitch
+  constellation, or circle of fifths) showing real-time played notes
+
 **New APVTS Parameters:**
 
 | Parameter | Type | Range | Default |
