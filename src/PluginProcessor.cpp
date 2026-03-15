@@ -383,6 +383,10 @@ AlgoNebulaProcessor::createParameterLayout() {
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID("octaveRange", 1), "Octave Range", 1, 5, 3));
 
+  // --- Musicality bypass ---
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID("musicalityBypass", 1), "Musicality Bypass", false));
+
   // --- GPU Acceleration (opt-in, default OFF) ---
   layout.add(std::make_unique<juce::AudioParameterBool>(
       juce::ParameterID("gpuAccel", 1), "GPU Acceleration", false));
@@ -921,6 +925,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         apvts.getRawParameterValue("baseOctave")->load());
     int octaveRange = static_cast<int>(
         apvts.getRawParameterValue("octaveRange")->load());
+    bool musicalityBypassed = apvts.getRawParameterValue("musicalityBypass")->load() > 0.5f;
 
     // Calculate step interval in samples for gate time
     double stepIntervalSec = clock.getStepIntervalSeconds();
@@ -973,83 +978,86 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             if (roll > noteProb)
               break; // Skip this column entirely
 
-            // --- Melodic inertia: repeat or stepwise motion ---
+            // --- Pitch generation (scale quantization always active) ---
             int midiNote;
-            musicRng ^= musicRng << 13;
-            musicRng ^= musicRng >> 7;
-            musicRng ^= musicRng << 17;
-            float inertiaRoll =
-                static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-            if (inertiaRoll < melInertia && lastTriggeredMidiNote > 0) {
-              // 50% exact repeat, 50% stepwise motion
+
+            if (!musicalityBypassed) {
+              // --- Melodic inertia: repeat or stepwise motion ---
               musicRng ^= musicRng << 13;
               musicRng ^= musicRng >> 7;
               musicRng ^= musicRng << 17;
-              float stepRoll =
+              float inertiaRoll =
                   static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-              if (stepRoll < 0.5f) {
-                midiNote = lastTriggeredMidiNote; // Exact repeat
-              } else {
-                // Stepwise: walk +-1 or +-2 scale degrees
+              if (inertiaRoll < melInertia && lastTriggeredMidiNote > 0) {
+                // 50% exact repeat, 50% stepwise motion
                 musicRng ^= musicRng << 13;
                 musicRng ^= musicRng >> 7;
                 musicRng ^= musicRng << 17;
-                float stepsRoll =
+                float stepRoll =
                     static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-                int steps = (stepsRoll < 0.7f) ? 1 : 2;
-                int stepped = lastTriggeredMidiNote;
-                for (int s = 0; s < steps; ++s) {
-                  int next = quantizer.quantizeToNearest(
-                      stepped + lastMelodicDirection_);
-                  if (next == stepped)
-                    next = quantizer.quantizeToNearest(
-                        stepped + lastMelodicDirection_ * 2);
-                  stepped = next;
+                if (stepRoll < 0.5f) {
+                  midiNote = lastTriggeredMidiNote; // Exact repeat
+                } else {
+                  // Stepwise: walk +-1 or +-2 scale degrees
+                  musicRng ^= musicRng << 13;
+                  musicRng ^= musicRng >> 7;
+                  musicRng ^= musicRng << 17;
+                  float stepsRoll =
+                      static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+                  int steps = (stepsRoll < 0.7f) ? 1 : 2;
+                  int stepped = lastTriggeredMidiNote;
+                  for (int s = 0; s < steps; ++s) {
+                    int next = quantizer.quantizeToNearest(
+                        stepped + lastMelodicDirection_);
+                    if (next == stepped)
+                      next = quantizer.quantizeToNearest(
+                          stepped + lastMelodicDirection_ * 2);
+                    stepped = next;
+                  }
+                  midiNote = stepped;
+                  // 15% chance of direction flip
+                  musicRng ^= musicRng << 13;
+                  musicRng ^= musicRng >> 7;
+                  musicRng ^= musicRng << 17;
+                  float flipRoll =
+                      static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
+                  if (flipRoll < 0.15f)
+                    lastMelodicDirection_ *= -1;
                 }
-                midiNote = stepped;
-                // 15% chance of direction flip
-                musicRng ^= musicRng << 13;
-                musicRng ^= musicRng >> 7;
-                musicRng ^= musicRng << 17;
-                float flipRoll =
-                    static_cast<float>(musicRng & 0xFFFF) / 65535.0f;
-                if (flipRoll < 0.15f)
-                  lastMelodicDirection_ *= -1;
+              } else if (pitchGravity > 0.0f) {
+                // --- Pitch gravity: bias toward chord tones ---
+                midiNote = quantizer.quantizeWeighted(
+                    row, col, baseOctave, octaveRange, bCols, pitchGravity, musicRng);
+              } else {
+                midiNote = quantizer.quantize(row, col, baseOctave, octaveRange, bCols);
               }
-            } else if (pitchGravity > 0.0f) {
-              // --- Pitch gravity: bias toward chord tones ---
-              midiNote = quantizer.quantizeWeighted(
-                  row, col, baseOctave, octaveRange, bCols, pitchGravity, musicRng);
+
+              // --- Consonance filter: weighted dissonance scoring ---
+              if (consonance > 0.0f && activeNoteCount > 0) {
+                int dissThreshold = static_cast<int>((1.0f - consonance) * 3.0f) + 1;
+                int dissScore = ScaleQuantizer::scoreDissAgainstAll(
+                    midiNote, activeNotes, activeNoteCount);
+                if (dissScore >= dissThreshold) {
+                  int above = quantizer.quantizeToNearest(midiNote + 1);
+                  int below = quantizer.quantizeToNearest(midiNote - 1);
+                  int scoreAbove = ScaleQuantizer::scoreDissAgainstAll(
+                      above, activeNotes, activeNoteCount);
+                  int scoreBelow = ScaleQuantizer::scoreDissAgainstAll(
+                      below, activeNotes, activeNoteCount);
+                  if (scoreAbove < dissScore && scoreAbove <= scoreBelow)
+                    midiNote = above;
+                  else if (scoreBelow < dissScore)
+                    midiNote = below;
+                }
+              }
+
+              // --- Max leap clamping ---
+              if (maxLeap > 0) {
+                midiNote = quantizer.clampLeap(midiNote, lastTriggeredMidiNote, maxLeap);
+              }
             } else {
+              // Bypassed: raw scale-quantized output only
               midiNote = quantizer.quantize(row, col, baseOctave, octaveRange, bCols);
-            }
-
-            // --- Consonance filter: weighted dissonance scoring ---
-            if (consonance > 0.0f && activeNoteCount > 0) {
-              // Threshold: higher consonance = lower tolerance for dissonance
-              int dissThreshold = static_cast<int>((1.0f - consonance) * 3.0f) + 1;
-              int dissScore = ScaleQuantizer::scoreDissAgainstAll(
-                  midiNote, activeNotes, activeNoteCount);
-              if (dissScore >= dissThreshold) {
-                // Search +-1 scale step for a less dissonant alternative
-                int above = quantizer.quantizeToNearest(midiNote + 1);
-                int below = quantizer.quantizeToNearest(midiNote - 1);
-                int scoreAbove = ScaleQuantizer::scoreDissAgainstAll(
-                    above, activeNotes, activeNoteCount);
-                int scoreBelow = ScaleQuantizer::scoreDissAgainstAll(
-                    below, activeNotes, activeNoteCount);
-                // Pick the best option (original, above, or below)
-                if (scoreAbove < dissScore && scoreAbove <= scoreBelow)
-                  midiNote = above;
-                else if (scoreBelow < dissScore)
-                  midiNote = below;
-                // else keep original — no thrashing
-              }
-            }
-
-            // --- Max leap clamping: constrain interval from last note ---
-            if (maxLeap > 0) {
-              midiNote = quantizer.clampLeap(midiNote, lastTriggeredMidiNote, maxLeap);
             }
 
             // --- Musical range clamp: C2(36) to C7(96) safety ---

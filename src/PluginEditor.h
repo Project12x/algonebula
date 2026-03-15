@@ -100,20 +100,27 @@ private:
 
   // --- Humanize ---
   LabeledKnob strumSpreadKnob;
-  LabeledKnob melodicInertiaKnob;
   LabeledKnob roundRobinKnob;
   LabeledKnob velHumanizeKnob;
-
   // --- Global ---
   LabeledKnob masterVolumeKnob;
   LabeledKnob voiceCountKnob;
 
-  // --- Anti-cacophony ---
-  LabeledKnob consonanceKnob;
+  // --- Density (was Anti-cacophony) ---
   LabeledKnob maxTrigsKnob;
   LabeledKnob restProbKnob;
-  LabeledKnob pitchGravityKnob;
 
+  // --- Musicality ---
+  juce::TextButton musicalityBypassBtn{"Bypass"};
+  std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
+      musicalityBypassAttach;
+  juce::Label detectedKeyLabel;
+  LabeledKnob consonanceKnob;
+  LabeledKnob pitchGravityKnob;
+  LabeledKnob melodicInertiaKnob;
+  LabeledKnob maxLeapKnob;
+  LabeledKnob baseOctaveKnob;
+  LabeledKnob octaveRangeKnob;
   // --- Status ---
   juce::Label cpuMeterLabel;
   juce::Label gpuMeterLabel;

@@ -189,12 +189,6 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
       "like strumming a guitar. 0 = all notes hit simultaneously, higher = "
       "cascading left-to-right spread. Adds a natural, organic quality to "
       "dense chords.");
-  setupKnob(melodicInertiaKnob, "Inertia", "melodicInertia");
-  melodicInertiaKnob.slider.setTooltip(
-      "Melodic inertia (0-100%): tendency to repeat or stay near the last pitch. "
-      "0% = every note is independent (chaotic), 50% = mix of repetition and "
-      "movement, 100% = notes cluster around the same pitch (droning). "
-      "Creates melodic continuity from otherwise random patterns.");
   setupKnob(roundRobinKnob, "RndRbn", "roundRobin");
   roundRobinKnob.slider.setTooltip(
       "Round-robin (0-100%): cycles voice allocation to avoid the same voice "
@@ -220,13 +214,7 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
       "richer texture but higher CPU. Dense algorithms may sound better with "
       "fewer voices.");
 
-  // --- Anti-cacophony ---
-  setupKnob(consonanceKnob, "Consonance", "consonance");
-  consonanceKnob.slider.setTooltip(
-      "Consonance filter (0-100%): prevents clashing intervals between "
-      "simultaneous notes. 0% = anything goes (dissonant/experimental), 50% = "
-      "mild filtering (some tension allowed), 100% = strict consonance "
-      "(only 3rds, 5ths, octaves). Higher = safer harmony, lower = edgier.");
+  // --- Density (was Anti-cacophony) ---
   setupKnob(maxTrigsKnob, "MaxTrigs", "maxTriggersPerStep");
   maxTrigsKnob.slider.setTooltip(
       "Max triggers per step (1-8): limits how many new notes can start in one "
@@ -239,12 +227,73 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
       "Creates rhythmic breathing and space in the output. 0% = constant "
       "notes, 30% = occasional pauses, 80% = mostly silence with sparse notes. "
       "Essential for preventing wall-of-sound fatigue.");
+
+  // --- Musicality ---
+  musicalityBypassBtn.setClickingTogglesState(true);
+  musicalityBypassBtn.setColour(juce::TextButton::buttonColourId,
+                                NebulaColours::bg_surface);
+  musicalityBypassBtn.setColour(juce::TextButton::buttonOnColourId,
+                                NebulaColours::danger.withAlpha(0.7f));
+  musicalityBypassBtn.setColour(juce::TextButton::textColourOffId,
+                                NebulaColours::text_normal);
+  musicalityBypassBtn.setColour(juce::TextButton::textColourOnId,
+                                NebulaColours::text_bright);
+  musicalityBypassBtn.setTooltip(
+      "Musicality bypass: when ON (red), disables all pitch shaping constraints "
+      "(consonance filter, melodic inertia, pitch gravity, max leap clamping). "
+      "Only scale quantization and musical range clamp remain active. Use this "
+      "to hear the raw CA-driven output without harmonic filtering.");
+  musicalityBypassAttach =
+      std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+          processor.getAPVTS(), "musicalityBypass", musicalityBypassBtn);
+  addAndMakeVisible(musicalityBypassBtn);
+
+  detectedKeyLabel.setFont(nebulaLnF.getMonoFont(11.0f));
+  detectedKeyLabel.setColour(juce::Label::textColourId, NebulaColours::accent1);
+  detectedKeyLabel.setJustificationType(juce::Justification::centred);
+  detectedKeyLabel.setText("Key: C", juce::dontSendNotification);
+  detectedKeyLabel.setTooltip(
+      "Detected key: shows the pitch class that appears most frequently in "
+      "recent output, based on a decaying histogram. Read-only indicator -- "
+      "does not control anything, just shows what key the CA is gravitating toward.");
+  addAndMakeVisible(detectedKeyLabel);
+
+  setupKnob(consonanceKnob, "Consonance", "consonance");
+  consonanceKnob.slider.setTooltip(
+      "Consonance filter (0-100%): prevents clashing intervals between "
+      "simultaneous notes. 0% = anything goes (dissonant/experimental), 50% = "
+      "mild filtering (some tension allowed), 100% = strict consonance "
+      "(only 3rds, 5ths, octaves). Higher = safer harmony, lower = edgier.");
   setupKnob(pitchGravityKnob, "Gravity", "pitchGravity");
   pitchGravityKnob.slider.setTooltip(
       "Pitch gravity (0-100%): pulls notes toward chord tones (root, 3rd, 5th) "
       "of the selected scale. 0% = notes land on any scale degree equally, "
       "100% = strong bias toward root and 5th (more tonal/grounded). Higher "
       "values create a stronger sense of key center.");
+  setupKnob(melodicInertiaKnob, "Inertia", "melodicInertia");
+  melodicInertiaKnob.slider.setTooltip(
+      "Melodic inertia (0-100%): tendency to repeat or stay near the last pitch. "
+      "0% = every note is independent (chaotic), 50% = mix of repetition and "
+      "movement, 100% = notes cluster around the same pitch (droning). "
+      "Creates melodic continuity from otherwise random patterns.");
+  setupKnob(maxLeapKnob, "Leap", "maxLeap");
+  maxLeapKnob.slider.setTooltip(
+      "Max leap (0-24 semitones): limits the maximum interval between consecutive "
+      "notes. 0 = disabled (any interval allowed), 7 = max a 5th, 12 = max an "
+      "octave. Smaller values create smoother, more melodic lines. Larger values "
+      "allow dramatic jumps.");
+  setupKnob(baseOctaveKnob, "Octave", "baseOctave");
+  baseOctaveKnob.slider.setTooltip(
+      "Base octave (1-6): the lowest octave for generated notes. 2 = bass range "
+      "(C2), 3 = middle (C3), 5 = high (C5). Combined with Octave Range, this "
+      "defines the pitch window. Lower = darker, bass-heavy. Higher = brighter, "
+      "more airy.");
+  setupKnob(octaveRangeKnob, "OctRng", "octaveRange");
+  octaveRangeKnob.slider.setTooltip(
+      "Octave range (1-5): how many octaves above the base octave notes can "
+      "appear. 1 = all notes in a single octave (tight cluster), 3 = moderate "
+      "spread, 5 = wide range across the keyboard. Wider = more variation, "
+      "narrower = more focused sound.");
 
   // --- CPU Meter ---
   cpuMeterLabel.setFont(nebulaLnF.getMonoFont(11.0f));
@@ -527,10 +576,14 @@ void AlgoNebulaEditor::paint(juce::Graphics &g) {
 
   // Bottom sections
   int bottomY = static_cast<int>(getHeight() * 0.72f);
+  int sectionW_paint = (getWidth() - 2 * margin) / 7;
   drawSectionLabel("CLOCK", margin, bottomY);
-  drawSectionLabel("TUNING", margin + 180, bottomY);
-  drawSectionLabel("AMBIENT", margin + 360, bottomY);
-  drawSectionLabel("HUMANIZE", margin + 560, bottomY);
+  drawSectionLabel("TUNING", margin + sectionW_paint, bottomY);
+  drawSectionLabel("AMBIENT", margin + sectionW_paint * 2, bottomY);
+  drawSectionLabel("DENSITY", margin + sectionW_paint * 3, bottomY);
+  drawSectionLabel("MUSICALITY", margin + sectionW_paint * 4, bottomY);
+  drawSectionLabel("HUMANIZE", margin + sectionW_paint * 5, bottomY);
+  drawSectionLabel("GLOBAL", margin + sectionW_paint * 6, bottomY);
 
   // Dividers
   g.setColour(NebulaColours::divider);
@@ -726,7 +779,7 @@ void AlgoNebulaEditor::resized() {
   auto bottomArea = area.reduced(margin, 0);
 
   // Clock section
-  int sectionW = bottomArea.getWidth() / 6;
+  int sectionW = bottomArea.getWidth() / 7;
   ctrlArea.removeFromTop(14); // for label
   auto clockArea = bottomArea.removeFromLeft(sectionW);
   clockArea.removeFromTop(14); // label gap
@@ -777,18 +830,29 @@ void AlgoNebulaEditor::resized() {
   auto ambRow = ambArea.removeFromTop(knobSize + labelH + 4);
   layoutKnobs(ambRow, {&droneSustainKnob, &noteProbKnob, &gateTimeKnob});
 
-  // Anti-cacophony section (4 knobs)
+  // Density section (2 knobs, was Anti-cacophony)
   auto cacArea = bottomArea.removeFromLeft(sectionW);
   cacArea.removeFromTop(14);
   auto cacRow = cacArea.removeFromTop(knobSize + labelH + 4);
-  layoutKnobs(cacRow, {&consonanceKnob, &maxTrigsKnob, &restProbKnob,
-                       &pitchGravityKnob});
+  layoutKnobs(cacRow, {&maxTrigsKnob, &restProbKnob});
 
-  // Humanize section (4 knobs)
+  // Musicality section (bypass+key header, 2 rows of 3 knobs)
+  auto musArea = bottomArea.removeFromLeft(sectionW);
+  musArea.removeFromTop(14);
+  auto musHeader = musArea.removeFromTop(20);
+  musicalityBypassBtn.setBounds(musHeader.removeFromLeft(musHeader.getWidth() / 2).reduced(2, 0));
+  detectedKeyLabel.setBounds(musHeader.reduced(2, 0));
+  musArea.removeFromTop(2);
+  auto musRow1 = musArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(musRow1, {&consonanceKnob, &pitchGravityKnob, &melodicInertiaKnob});
+  auto musRow2 = musArea.removeFromTop(knobSize + labelH + 4);
+  layoutKnobs(musRow2, {&maxLeapKnob, &baseOctaveKnob, &octaveRangeKnob});
+
+  // Humanize section (3 knobs)
   auto humArea = bottomArea.removeFromLeft(sectionW);
   humArea.removeFromTop(14);
   auto humRow = humArea.removeFromTop(knobSize + labelH + 4);
-  layoutKnobs(humRow, {&strumSpreadKnob, &melodicInertiaKnob, &roundRobinKnob,
+  layoutKnobs(humRow, {&strumSpreadKnob, &roundRobinKnob,
                        &velHumanizeKnob});
 
   // Global section (volume + voices)
@@ -841,5 +905,17 @@ void AlgoNebulaEditor::timerCallback() {
     else gpuMeterLabel.setColour(juce::Label::textColourId, NebulaColours::alive);
   } else {
     gpuMeterLabel.setText("", juce::dontSendNotification);
+  }
+
+  // Update detected key display
+  {
+    static const char* noteNames[] = {
+        "C", "C#", "D", "D#", "E", "F",
+        "F#", "G", "G#", "A", "A#", "B"};
+    int key = processor.getDetectedKey();
+    if (key >= 0 && key < 12)
+      detectedKeyLabel.setText(
+          juce::String("Key: ") + noteNames[key],
+          juce::dontSendNotification);
   }
 }
