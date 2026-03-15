@@ -43,16 +43,24 @@ public:
     const bool useRoundedRect = cellSize > 4.0f;
     const bool showGlow = cellSize > 6.0f;
 
-    for (int r = 0; r < rows; ++r) {
-      for (int c = 0; c < cols; ++c) {
+    // Subsample when cells are sub-pixel — no point rendering invisible detail
+    // Skip so each rendered cell is at least 1px (ideally 2px for visibility)
+    int skip = 1;
+    if (cellSize < 2.0f) {
+      skip = std::max(1, static_cast<int>(std::ceil(2.0f / cellSize)));
+    }
+    const float renderCellSize = cellSize * skip;
+
+    for (int r = 0; r < rows; r += skip) {
+      for (int c = 0; c < cols; c += skip) {
         uint8_t cellState = grid.getCell(r, c);
         if (cellState == 0)
           continue; // dead cell -- background already covers it
 
         float x = offsetX + c * cellSize + gap * 0.5f;
         float y = offsetY + r * cellSize + gap * 0.5f;
-        float w = std::max(cellSize - gap, 1.0f); // ensure at least 1px
-        float h = std::max(cellSize - gap, 1.0f);
+        float w = std::max(renderCellSize - gap, 1.0f);
+        float h = std::max(renderCellSize - gap, 1.0f);
 
         juce::Colour cellColour;
 
