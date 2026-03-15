@@ -796,6 +796,30 @@ no longer directly represents what is heard. This phase bridges that gap.
 - **Novelty injection system**: chromatic passing tones, borrowed chords, rhythmic displacement
   - Note: NOT yet implemented in Poompatoom — requires original design work
 
+### v2.4 — Grid Interpretation Modes
+
+Multiple selectable modes that change how the CA grid maps to music.
+The same CA simulation runs underneath; each mode reinterprets cell activity
+differently. Post-processing constraint pipeline (leap, consonance, inertia,
+range clamp) runs on top of all modes.
+
+- [ ] **CA Classic** (current, improved): column→scale degree mapping, spatially
+  coherent so neighboring cells produce neighboring pitches
+- [ ] **Piano Roll**: rows=pitch (bottom=low, top=high), playheads traverse the
+  live CA horizontally. Active cells at playhead position trigger their row's pitch
+- [ ] **Harmonic Lattice** (Tonnetz-inspired): grid axes encode musical intervals
+  (e.g., X=M3, Y=P5). Spatial proximity = harmonic proximity. Clusters of active
+  cells form chords naturally
+- [ ] **Graph Traversal** (Nodal-inspired): autonomous agents walk between active
+  cells; the path taken determines the melody. Multiple agents = polyphony.
+  Agent speed/direction controls rhythm
+- [ ] **Pattern Density** (Eno-inspired): cell density/activity in grid regions
+  drives note probability and dynamics rather than individual cell positions.
+  The CA is a macro-level controller, not a note-per-cell mapper
+- [ ] Mode selector UI (dropdown or tab strip in editor)
+- [ ] Per-mode parameter panels (e.g., playhead count for Piano Roll,
+  agent count for Graph Traversal)
+
 ### v3.0 — Experimental Algorithms (Tier 3)
 - Markov Chain, Predator-Prey, Neural CA, DLA, L-System Grid
 
