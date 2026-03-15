@@ -1,7 +1,7 @@
 # Project State
 
 ## Current Phase
-Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Lenia, Particle Swarm, Brownian). Next: GPU symmetry/patterns, Phase 11 (Arp + Vibrato)
+Phase 13.5A complete — CPU engine stepping moved off audio thread. Next: Phase 13.5B (SIMD acceleration) or Phase 13 musicality remaining (tension scoring, visual feedback)
 
 ## Build Status
 - VST3: Builds successfully (Release)
@@ -26,6 +26,7 @@ Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Len
 | v0.9.0 | `v0.9.0` | Effect toggles, modulation matrix, CA energy stability |
 | v0.13.0 | — | GPU compute integration, float bridge, expanded grid sizes |
 | v0.13.1 | — | GPU/CPU parity: all 7 GPU engines working, dual-pass shader fix, voice kill, paint optimization |
+| v0.13.5 | — | CPU engine RT-safety: background thread offload, grid flicker fix, paint subsampling |
 
 ## Completed Phases
 - Phase 1: Skeleton + UI Foundation
@@ -42,6 +43,7 @@ Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Len
 - Phase 13a: CMake + ghostsun_render build integration
 - Phase 13b: GPU compute adapters (7 WGSL shaders + ComputeSimulation subclasses)
 - Phase 13c: Processor integration (GpuGridBridge, float bridge, generation-gated convertToGrid)
+- Phase 13.5A: CPU engine RT-safety (CpuStepTimer, double-buffered snapshot, paint subsampling)
 
 ## Key Classes
 | Class | File | Status |
@@ -50,7 +52,8 @@ Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Len
 | `AlgoNebulaEditor` | `src/PluginEditor.h/.cpp` | Full control layout, FX popout, grid size dropdown (12 sizes), GPU toggle + meter, freeze button |
 | `GpuComputeManager` | `src/gpu/GpuComputeManager.h/.cpp` | Timer-driven GPU simulation loop, engine adapter management, async readback |
 | `GpuGridBridge` | `src/gpu/GpuGridBridge.h` | Lock-free float double-buffer, generation-gated convertToGrid, intensity-as-age mapping |
-| `GridComponent` | `src/ui/GridComponent.h` | Engine-aware visualization (per-engine color palettes), click-to-toggle cells |
+| `GridComponent` | `src/ui/GridComponent.h` | Engine-aware visualization (per-engine color palettes), click-to-toggle cells, pixel-aware subsampling |
+| `CpuStepTimer` | `src/engine/CpuStepTimer.h` | juce::Timer (60Hz) running CPU engine stepping on message thread, atomic request flags |
 | `NebulaLookAndFeel` | `src/ui/NebulaLookAndFeel.h/.cpp` | Gradient arc knobs, glow, Inter/JetBrains fonts |
 | `NebulaColours` | `src/ui/NebulaColours.h` | Dark palette tokens + 6 engine visualization tokens |
 | `EffectsPanel` | `src/ui/EffectsPanel.h` | Non-modal FX popout, 9 toggles, trigger budget, 2 LFO sections, 12 effect sections |
@@ -74,16 +77,13 @@ Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Len
 | `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan, gate time |
 | `FactoryPresets` | `src/engine/FactoryPresets.h` | 16 presets with effect toggles and trigger budget |
 
-## Recent Changes (v0.13.1)
-- GPU seed propagation fixed: `generateInitialState()` uses user seed/density (was hardcoded 42)
-- Transport controls (clear/reseed/seed) forward to GPU when active
-- Auto-reseed stagnation/overpopulation forward to GPU via callAsync
-- Reseed cooldown (120 ticks) prevents rapid-fire GPU reseeding during warmup
-- GPU stagnation threshold raised to 60 ticks (CPU stays at 8)
-- `GpuGridBridge::generation_` made atomic for cross-thread safety
-- ParticleSwarm + BrownianField GPU crash fixed: inline WGSL shaders were truncated (missing `moveParticles` / `walkDeposit` entry points)
-- Voice kill on transport: `reset()` on clear, `noteOff()` on reseed
-- GridComponent paint optimization: skip dead cells, fillRect for tiny cells, no glow under 6px
+## Recent Changes (v0.13.5)
+- CPU engine stepping moved off audio thread via CpuStepTimer (juce::Timer @ 60Hz on message thread)
+- All engine mutations (step, randomize, clear, cell edits, pattern load) deferred to message thread
+- Double-buffered gridSnapshot eliminates torn frames between audio and UI threads
+- Pixel-aware paint subsampling reduces draw iterations at large grids
+- Engine recreation deferred to message thread (prevents dangling pointer crash)
+- CPU and GPU paths now share identical architecture: simulation on message thread, audio reads from GpuGridBridge
 
 ## Known Issues
 - GPU `randomizeSymmetric()` and factory patterns not implemented (CPU-only)

@@ -671,11 +671,12 @@ no longer directly represents what is heard. This phase bridges that gap.
 
 **Problem:** CPU CA engines step the entire grid inside `processBlock()` — heap-touching, branching-heavy iteration over up to 1.6M cells. This blocks the audio callback for tens of milliseconds, causing audio glitches at large grid sizes. This is a fundamental real-time safety violation.
 
-### Part A — Background Thread Offload (RT-Safety Fix)
-- [ ] Create `CpuStepThread` (dedicated juce::Thread or juce::Timer) that runs CPU engine `step()` off the audio thread
-- [ ] CPU engines write results to `GpuGridBridge` (reuse existing lock-free infrastructure)
-- [ ] Audio thread reads only from `GpuGridBridge` — same path as GPU mode
-- [ ] Remove all `engine->step()` calls from `processBlock()`
+### Part A — Background Thread Offload (RT-Safety Fix) **DONE**
+- [x] Create `CpuStepTimer` (juce::Timer @ 60Hz on message thread) that runs CPU engine `step()` off the audio thread
+- [x] CPU engines write results to `GpuGridBridge` (reuse existing lock-free infrastructure)
+- [x] Audio thread reads only from `GpuGridBridge` — same path as GPU mode
+- [x] Remove all `engine->step()` calls from `processBlock()`
+- [x] All engine mutations (randomize, clear, cell edits, pattern load) deferred to message thread
 - [ ] Verify: zero allocations in processBlock with CPU engines at 1280x1280
 
 ### Part B — SIMD-Accelerated Stepping
@@ -697,7 +698,7 @@ no longer directly represents what is heard. This phase bridges that gap.
 - [ ] TSAN clean: no data races between step thread and audio thread
 
 **RT Safety Checkpoint:**
-- [ ] No `engine->step()` calls in processBlock
+- [x] No `engine->step()` calls in processBlock
 - [ ] No heap allocations in processBlock with CPU engines
 - [ ] Lock-free communication only between step thread and audio thread
 

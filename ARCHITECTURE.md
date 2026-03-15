@@ -2,7 +2,7 @@
 
 ## High-Level Signal Flow
 ```
-CellularEngine (7 engines, CPU path, audio thread)
+CellularEngine (7 engines, CPU path, message thread via CpuStepTimer)
     OR
 GpuComputeManager (7 GPU adapters, message thread, WebGPU/Dawn)
     -> GpuGridBridge (lock-free float double-buffer)
@@ -85,12 +85,26 @@ GPU path (gpuAccel=ON):
       |     -> gridSnapshot      |
 
 CPU path (gpuAccel=OFF):
-  Audio Thread
-      |
-  engine->step()
-  bridge.updateFromCpu(engine->getGrid())
-      | (same readLock/readUnlock flow)
+  Message Thread              Audio Thread
+      |                           |
+  CpuStepTimer ~60Hz              |
+      |                           |
+  engine->step()                  |
+  bridge.updateFromCpu()          |
+  (atomic flag consumed)          |
+      |                           |
+      |  ---readLock()----------> |
+      |     float* current        |
+      |     float* previous       |
+      |  ---readUnlock()--------> |
+      |                           |
+      |  convertToGrid()          |
+      |  (generation-gated)       |
+      |     -> gridSnapshots_     |
 ```
+
+Both paths share the same architecture: simulation on message thread,
+audio thread reads only from GpuGridBridge (lock-free).
 
 ### GpuGridBridge
 - Float-only double-buffer with atomic pointer swap
@@ -104,20 +118,22 @@ CPU path (gpuAccel=OFF):
 
 ## Engine Architecture
 ```
-UI Thread                Audio Thread              UI Thread (paint)
+UI Thread                Message Thread            Audio Thread
     |                        |                         |
     |  CellEditQueue (SPSC)  |                         |
     |  --push(row,col,st)--> |                         |
-    |                        | drainInto(grid)         |
-    |                        | engine->step()          |
-    |                        | bridge.updateFromCpu()  |
     |                        |                         |
-    |                        | bridge.readLock()       |
-    |                        | (voice triggering)      |
-    |                        | bridge.readUnlock()     |
+    |                   CpuStepTimer ~60Hz              |
     |                        |                         |
-    |                        | convertToGrid()         |
-    |                        |   -> gridSnapshot ----> | GridComponent::paint()
+    |                   drainInto(grid)                 |
+    |                   engine->step()                  |
+    |                   bridge.updateFromCpu()          |
+    |                        |                         |
+    |                        |  audio reads bridge      |
+    |                        |  (voice triggering)      |
+    |                        |                         |
+    |                        |  convertToGrid()         |
+    |                        |   -> gridSnapshots_ ---> | GridComponent::paint()
 ```
 
 ### CellularEngine Interface
@@ -236,10 +252,10 @@ Each engine renders with a distinct color palette:
 Status bar shows engine name + generation counter.
 
 ## Thread Model
-- **Audio thread**: `processBlock()` -- zero allocation, lock-free reads from bridge
-- **Message thread**: `GpuComputeManager::timerCallback()` -- GPU compute + readback, editor painting
+- **Audio thread**: `processBlock()` — zero allocation, lock-free reads from bridge, sets atomic step/reseed/clear flags
+- **Message thread**: `GpuComputeManager::timerCallback()` (GPU), `CpuStepTimer::timerCallback()` (CPU) — engine stepping, cell edit drain, editor painting
 - **UI thread**: parameter changes via APVTS (atomic), cell edits via SPSC queue
-- **Communication**: SPSC queue (UI->audio), atomic reads (audio->UI), GpuGridBridge (GPU->audio), double-buffered grid state
+- **Communication**: SPSC queue (UI->message thread), atomic flags (audio->message thread), GpuGridBridge (message->audio), double-buffered grid snapshots (audio->UI)
 
 ## Key Design Decisions
 - All buffers pre-allocated in `prepareToPlay()`

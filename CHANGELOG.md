@@ -3,6 +3,26 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.5] - 2026-03-15
+
+### Added
+
+- **CpuStepTimer** (`src/engine/CpuStepTimer.h`): `juce::Timer` on message thread that runs CPU `engine->step()` off the audio thread. Audio thread only sets atomic flags; timer consumes them at ~60 Hz.
+- **Double-buffered gridSnapshot**: `gridSnapshots_[2]` with atomic read index eliminates torn frames between audio and UI threads.
+- **Pixel-aware grid subsampling**: `GridComponent::paint()` skips sub-pixel cells at large grids, reducing draw iterations from 1.6M to ~65K at 1280x1280.
+
+### Fixed
+
+- **CPU engine RT-safety** (Phase 13.5A): `engine->step()`, `randomize()`, `clear()`, and cell edit draining removed from `processBlock()`. All CPU engine mutations deferred to message thread via `CpuStepTimer` or `callAsync`. Eliminates ~50ms audio-thread blocking at 1280x1280.
+- **Grid display flicker**: Race condition between audio thread writing `gridSnapshot` and UI thread reading it. Resolved with double-buffered snapshots and atomic index swap.
+- **Engine recreation crash**: Algorithm/grid-size changes recreated the engine on the audio thread, invalidating the timer's raw pointer. Now deferred to message thread with timer stop/restart.
+
+### Changed
+
+- CPU and GPU paths now share the same architecture: simulation on message thread, audio thread reads only from `GpuGridBridge`.
+- `CellEditQueue` drain moved from `processBlock` to `CpuStepTimer::timerCallback()`.
+- Factory pattern load deferred to message thread via `callAsync`.
+
 ## [0.13.1] - 2026-03-14
 
 ### Fixed
