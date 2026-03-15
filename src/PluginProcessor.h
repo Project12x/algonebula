@@ -168,12 +168,15 @@ private:
   float densityGain = 1.0f;       // Updated each step from grid density
   int lastTriggeredMidiNote = 60; // For melodic inertia
   int lastMelodicDirection_ = 1;  // +1 ascending, -1 descending
+  float noteHistogram_[12] = {};   // Decaying pitch class histogram
+  int detectedKey_ = 0;            // Pitch class with highest weight (0=C)
   uint64_t musicRng = 42;         // RNG for probability/humanization
 
 public:
   // UI accessors (call from message thread only)
   const CellularEngine &getEngine() const { return *engine; }
   float getDensityGain() const { return densityGain; }
+  int getDetectedKey() const { return detectedKey_; }
 
 private:
   // --- DSP Effects (individual instances) ---

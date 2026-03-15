@@ -1057,6 +1057,18 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             if (midiNote > 96) midiNote = 96;
 
             lastTriggeredMidiNote = midiNote;
+
+            // --- Pitch histogram: decaying key detection (RT-safe) ---
+            for (int i = 0; i < 12; ++i) noteHistogram_[i] *= 0.995f;
+            noteHistogram_[midiNote % 12] += 1.0f;
+            float maxW = 0.0f;
+            for (int i = 0; i < 12; ++i) {
+              if (noteHistogram_[i] > maxW) {
+                maxW = noteHistogram_[i];
+                detectedKey_ = i;
+              }
+            }
+
             float frequency = tuning.getFrequency(midiNote);
 
             // --- Velocity humanization + engine intensity ---
