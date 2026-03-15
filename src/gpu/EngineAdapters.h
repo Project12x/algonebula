@@ -221,7 +221,7 @@ public:
     uint32_t _pad1;
   };
 
-  Lenia2DCompute(int rows, int cols, uint32_t radius = 3)
+  Lenia2DCompute(int rows, int cols, uint32_t radius = 5)
       : GridComputeAdapter(rows, cols), radius_(radius) {}
 
   std::string getShaderSource() const override;
@@ -229,25 +229,35 @@ public:
 
   void writeParams(void *dst) const override {
     Params p{(uint32_t)cols_, (uint32_t)rows_, radius_, 0,
-             0.15f,           0.015f,          0.1f,    0};
+             0.15f,           0.045f,          0.1f,    0};
     std::memcpy(dst, &p, sizeof(p));
   }
 
   void generateInitialState(std::vector<float> &state) const override {
-    // Gaussian blob in center
-    int cx = rows_ / 2, cy = cols_ / 2;
-    for (int r = 0; r < rows_; ++r) {
-      for (int c = 0; c < cols_; ++c) {
-        float dx = float(r - cx) / float(rows_) * 4.0f;
-        float dy = float(c - cy) / float(cols_) * 4.0f;
-        float d2 = dx * dx + dy * dy;
-        state[r * cols_ + c] = (d2 < 1.0f) ? std::exp(-d2 * 2.0f) : 0.0f;
+    // Multiple Gaussian blobs for richer initial conditions
+    uint64_t rng = rngSeed_;
+    int numBlobs = 3 + (rows_ * cols_ > 64 * 64 ? 4 : 0); // more blobs at larger grids
+    std::fill(state.begin(), state.end(), 0.0f);
+    for (int b = 0; b < numBlobs; ++b) {
+      rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
+      int cx = int((rng >> 33) % rows_);
+      rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
+      int cy = int((rng >> 33) % cols_);
+      float blobRadius = float(std::min(rows_, cols_)) * 0.12f;
+      for (int r = 0; r < rows_; ++r) {
+        for (int c = 0; c < cols_; ++c) {
+          float dx = float(r - cx);
+          float dy = float(c - cy);
+          float d2 = (dx * dx + dy * dy) / (blobRadius * blobRadius);
+          if (d2 < 4.0f)
+            state[r * cols_ + c] = std::min(1.0f, state[r * cols_ + c] + std::exp(-d2));
+        }
       }
     }
   }
 
 private:
-  uint32_t radius_ = 3;
+  uint32_t radius_ = 5;
 };
 
 // ═══════════════════════════════════════════════════════════════════

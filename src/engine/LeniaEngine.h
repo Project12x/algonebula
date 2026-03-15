@@ -49,9 +49,9 @@ private:
   void prepareFFT(); // One-time FFT kernel setup
 
   // Lenia parameters
-  static constexpr int kRadius = 3;
+  static constexpr int kRadius = 5;
   static constexpr float kMu = 0.15f;     // Growth center
-  static constexpr float kSigma = 0.015f; // Growth width
+  static constexpr float kSigma = 0.045f; // Growth width (wider = more forgiving)
   static constexpr float kDt = 0.1f;      // Time step
   static constexpr float kThreshold = 0.1f;
 

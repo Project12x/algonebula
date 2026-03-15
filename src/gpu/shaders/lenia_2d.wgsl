@@ -10,7 +10,7 @@ struct Params {
   radius: u32,       // kernel radius (e.g. 3)
   _pad0: u32,
   growthMu: f32,     // growth center (e.g. 0.15)
-  growthSigma: f32,  // growth width (e.g. 0.015)
+  growthSigma: f32,  // growth width (e.g. 0.045)
   dt: f32,           // time step (e.g. 0.1)
   _pad1: u32,
 };
