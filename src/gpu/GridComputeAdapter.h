@@ -37,6 +37,20 @@ public:
   /// Entry point name in the WGSL shader. Default: "main".
   virtual const char *getEntryPoint() const { return "main"; }
 
+  /// Secondary entry point for engines with two compute passes.
+  /// Return nullptr (default) if only one pass is needed.
+  /// Brownian: "walkDeposit", ParticleSwarm: "moveParticles".
+  virtual const char *getSecondaryEntryPoint() const { return nullptr; }
+
+  /// Workgroup dispatch dimensions for the secondary pass.
+  /// Default: 1D dispatch over particles/walkers.
+  virtual void getSecondaryDispatch(uint32_t &x, uint32_t &y,
+                                    uint32_t &z) const {
+    x = 1;
+    y = 1;
+    z = 1;
+  }
+
   /// Number of float elements per cell. Default 1.
   /// RD uses 2 (interleaved u, v).
   virtual uint32_t floatsPerCell() const { return 1; }
@@ -62,8 +76,13 @@ public:
     return cellCount() * floatsPerCell() * sizeof(float);
   }
   WGPUBuffer getStateBuffer() const { return stateBuffers_[current_]; }
+  WGPUBuffer getStateBufferByIndex(int idx) const { return stateBuffers_[idx]; }
+  WGPUDevice getDevice() const { return device_; }
   uint32_t getReadbackFrameSkip() const { return readbackFrameSkip_; }
   void setReadbackFrameSkip(uint32_t n) { readbackFrameSkip_ = n; }
+
+  /// Set seed and density for initial state generation.
+  void setInitSeed(uint64_t s, float d) { rngSeed_ = s; density_ = d; }
 
 protected:
   int rows_ = 0;
@@ -72,15 +91,20 @@ protected:
   // GPU resources
   WGPUDevice device_ = nullptr;
   WGPUComputePipeline pipeline_ = nullptr;
+  WGPUComputePipeline secondaryPipeline_ = nullptr; // for dual-pass engines
   WGPUBindGroupLayout bgl_ = nullptr;
+  WGPUBindGroupLayout secondaryBgl_ = nullptr;
   WGPUBuffer stateBuffers_[2] = {}; // ping-pong
   WGPUBuffer paramsBuffer_ = nullptr;
   std::vector<WGPUBuffer> extraBuffers_;
   WGPUBindGroup bindGroups_[2] = {}; // one per ping-pong direction
+  WGPUBindGroup secondaryBindGroups_[2] = {}; // for secondary pass
   int current_ = 0;                  // which stateBuffer is "current"
   uint32_t frame_ = 0;
   uint32_t readbackFrameSkip_ = 2; // readback every N frames
   bool initialized_ = false;
+  uint64_t rngSeed_ = 42;   // user-provided RNG seed
+  float density_ = 0.25f;   // initial alive density
 
   // Helpers
   WGPUBuffer createBuffer(WGPUDevice device, uint64_t size,

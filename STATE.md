@@ -1,7 +1,7 @@
 # Project State
 
 ## Current Phase
-Phase 13c complete — GPU compute integrated, float bridge stabilized. Next: grid conversion toggle, GPU Brownian crash, or Phase 11 (Arp + Vibrato)
+Phase 13c+ — All GPU engines operational (GoL, Brian's Brain, Cyclic, R-D, Lenia, Particle Swarm, Brownian). Next: GPU symmetry/patterns, Phase 11 (Arp + Vibrato)
 
 ## Build Status
 - VST3: Builds successfully (Release)
@@ -25,6 +25,7 @@ Phase 13c complete — GPU compute integrated, float bridge stabilized. Next: gr
 | v0.8.0 | `v0.8.0` | 6 new effects, StereoEffect base, EffectChain, SafetyProcessor |
 | v0.9.0 | `v0.9.0` | Effect toggles, modulation matrix, CA energy stability |
 | v0.13.0 | — | GPU compute integration, float bridge, expanded grid sizes |
+| v0.13.1 | — | GPU/CPU parity: all 7 GPU engines working, dual-pass shader fix, voice kill, paint optimization |
 
 ## Completed Phases
 - Phase 1: Skeleton + UI Foundation
@@ -73,17 +74,18 @@ Phase 13c complete — GPU compute integrated, float bridge stabilized. Next: gr
 | `SynthVoice` | `src/engine/SynthVoice.h` | Composite voice (osc+sub+noise+env+filter), stereo pan, gate time |
 | `FactoryPresets` | `src/engine/FactoryPresets.h` | 16 presets with effect toggles and trigger budget |
 
-## Recent Changes (v0.13.0)
-- GPU compute integration via ghostsun_render (WebGPU/Dawn)
-- GpuComputeManager: timer-driven GPU simulation with async readback
-- GpuGridBridge: float-only double-buffer with lock-free reads
-- 7 GPU engine adapters (WGSL compute shaders)
-- GPU toggle (APVTS `gpuAccel`, default OFF) + GPU step time meter
-- Grid sizes expanded to 12 options (8x12 through 1280x1280)
-- Float bridge crash fix: generation-gated convertToGrid
-- Continuous engine visualization: float intensity mapped to age for rendering
+## Recent Changes (v0.13.1)
+- GPU seed propagation fixed: `generateInitialState()` uses user seed/density (was hardcoded 42)
+- Transport controls (clear/reseed/seed) forward to GPU when active
+- Auto-reseed stagnation/overpopulation forward to GPU via callAsync
+- Reseed cooldown (120 ticks) prevents rapid-fire GPU reseeding during warmup
+- GPU stagnation threshold raised to 60 ticks (CPU stays at 8)
+- `GpuGridBridge::generation_` made atomic for cross-thread safety
+- ParticleSwarm + BrownianField GPU crash fixed: inline WGSL shaders were truncated (missing `moveParticles` / `walkDeposit` entry points)
+- Voice kill on transport: `reset()` on clear, `noteOff()` on reseed
+- GridComponent paint optimization: skip dead cells, fillRect for tiny cells, no glow under 6px
 
 ## Known Issues
-- GPU crash on Brownian engine (needs investigation)
+- GPU `randomizeSymmetric()` and factory patterns not implemented (CPU-only)
 - Grid conversion toggle (binary vs. float mode) not yet implemented
 - Lint errors in IDE from missing JUCE headers (false positives, builds fine)

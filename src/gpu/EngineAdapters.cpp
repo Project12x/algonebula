@@ -185,7 +185,46 @@ fn hash(seed: u32) -> f32 {
 fn decayTrails(@builtin(global_invocation_id) gid: vec3<u32>) {
   let col = gid.x; let row = gid.y;
   if (col >= params.width || row >= params.height) { return; }
+  _ = particles[0];
   stateOut[idx(row, col)] = stateIn[idx(row, col)] * params.trailDecay;
+}
+
+@compute @workgroup_size(64)
+fn moveParticles(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let pid = gid.x;
+  if (pid >= params.numParticles) { return; }
+  _ = stateIn[0];
+  let base = pid * 4u;
+  var px = particles[base];
+  var py = particles[base + 1u];
+  var vx = particles[base + 2u];
+  var vy = particles[base + 3u];
+  let w = f32(params.width);
+  let h = f32(params.height);
+  let seed = pid * 1337u + u32(px * 100.0) + u32(py * 7919.0);
+  let rx = (hash(seed) - 0.5) * 2.0;
+  let ry = (hash(seed + 1u) - 0.5) * 2.0;
+  let cx = u32(px) % params.width;
+  let cy = u32(py) % params.height;
+  let left  = stateOut[idx(cy, (cx + params.width - 1u) % params.width)];
+  let right = stateOut[idx(cy, (cx + 1u) % params.width)];
+  let up    = stateOut[idx((cy + params.height - 1u) % params.height, cx)];
+  let down  = stateOut[idx((cy + 1u) % params.height, cx)];
+  let gradX = right - left;
+  let gradY = down - up;
+  vx = params.inertia * vx + params.socialWeight * gradX + 0.1 * rx;
+  vy = params.inertia * vy + params.socialWeight * gradY + 0.1 * ry;
+  let speed = sqrt(vx * vx + vy * vy);
+  if (speed > 2.0) { vx = vx / speed * 2.0; vy = vy / speed * 2.0; }
+  px = (px + vx + w) % w;
+  py = (py + vy + h) % h;
+  particles[base]      = px;
+  particles[base + 1u] = py;
+  particles[base + 2u] = vx;
+  particles[base + 3u] = vy;
+  let depX = u32(px) % params.width;
+  let depY = u32(py) % params.height;
+  stateOut[idx(depY, depX)] = stateOut[idx(depY, depX)] + params.trailDeposit;
 }
 )";
 }
@@ -202,17 +241,58 @@ struct Params {
 @group(0) @binding(3) var<storage, read_write> walkers: array<f32>;
 fn idx(r: u32, c: u32) -> u32 { return r * params.width + c; }
 fn wrap(val: i32, max: u32) -> u32 { return u32((val + i32(max)) % i32(max)); }
+fn hash(seed: u32) -> u32 {
+  var s = seed; s ^= s >> 16u; s *= 0x45d9f3bu; s ^= s >> 16u;
+  s *= 0x45d9f3bu; s ^= s >> 16u; return s;
+}
 
 @compute @workgroup_size(16, 16)
 fn diffuseDecay(@builtin(global_invocation_id) gid: vec3<u32>) {
   let col = gid.x; let row = gid.y;
   if (col >= params.width || row >= params.height) { return; }
+  _ = walkers[0];
   let center = stateIn[idx(row, col)];
   let up = stateIn[idx(wrap(i32(row)-1, params.height), col)];
   let dn = stateIn[idx(wrap(i32(row)+1, params.height), col)];
   let lt = stateIn[idx(row, wrap(i32(col)-1, params.width))];
   let rt = stateIn[idx(row, wrap(i32(col)+1, params.width))];
   stateOut[idx(row, col)] = mix(center, (up+dn+lt+rt)*0.25, params.diffusionRate) * params.decayRate;
+}
+
+@compute @workgroup_size(64)
+fn walkDeposit(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let wid = gid.x;
+  if (wid >= params.numWalkers) { return; }
+  _ = stateIn[0];
+  let base = wid * 2u;
+  var wx = walkers[base];
+  var wy = walkers[base + 1u];
+  let seed = wid * 7919u + params.stepCount * 1337u;
+  let h = hash(seed);
+  let dir = h % 4u;
+  let w = f32(params.width);
+  let h2 = f32(params.height);
+  switch dir {
+    case 0u: { wy = (wy - 1.0 + h2) % h2; }
+    case 1u: { wy = (wy + 1.0) % h2; }
+    case 2u: { wx = (wx - 1.0 + w) % w; }
+    default: { wx = (wx + 1.0) % w; }
+  }
+  let h3 = hash(seed + 42u);
+  if (h3 % 8u == 0u) {
+    let diagDir = (h3 / 8u) % 4u;
+    switch diagDir {
+      case 0u: { wx = (wx - 1.0 + w) % w; wy = (wy - 1.0 + h2) % h2; }
+      case 1u: { wx = (wx + 1.0) % w; wy = (wy - 1.0 + h2) % h2; }
+      case 2u: { wx = (wx - 1.0 + w) % w; wy = (wy + 1.0) % h2; }
+      default: { wx = (wx + 1.0) % w; wy = (wy + 1.0) % h2; }
+    }
+  }
+  walkers[base] = wx;
+  walkers[base + 1u] = wy;
+  let depX = u32(wx) % params.width;
+  let depY = u32(wy) % params.height;
+  stateOut[idx(depY, depX)] = stateOut[idx(depY, depX)] + params.deposit;
 }
 )";
 }

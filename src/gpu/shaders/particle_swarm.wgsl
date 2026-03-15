@@ -50,6 +50,9 @@ fn decayTrails(@builtin(global_invocation_id) gid: vec3<u32>) {
     return;
   }
 
+  // Dummy read to ensure binding 3 is in auto-layout for shared bind groups
+  _ = particles[0];
+
   let i = idx(row, col);
   stateOut[i] = stateIn[i] * params.trailDecay;
 }
@@ -61,6 +64,9 @@ fn moveParticles(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (pid >= params.numParticles) {
     return;
   }
+
+  // Dummy read to ensure binding 1 is in auto-layout for shared bind groups
+  _ = stateIn[0];
 
   let base = pid * 4u;
   var px = particles[base];

@@ -63,7 +63,7 @@ public:
     float *old = readBuf_.exchange(dst, std::memory_order_release);
     writeBuf_.store(old, std::memory_order_relaxed);
 
-    ++generation_;
+    generation_.fetch_add(1, std::memory_order_release);
   }
 
   /// Called on audio thread after CPU engine steps.
@@ -92,7 +92,7 @@ public:
     float *old = readBuf_.exchange(dst, std::memory_order_release);
     writeBuf_.store(old, std::memory_order_relaxed);
 
-    ++generation_;
+    generation_.fetch_add(1, std::memory_order_release);
   }
 
   // ---------------------------------------------------------------
@@ -162,10 +162,10 @@ public:
   }
 
   /// Current generation count.
-  uint64_t getGeneration() const { return generation_; }
+  uint64_t getGeneration() const { return generation_.load(std::memory_order_acquire); }
 
   /// Whether at least one frame has been delivered.
-  bool hasData() const { return generation_ > 0; }
+  bool hasData() const { return generation_.load(std::memory_order_acquire) > 0; }
 
   int getRows() const { return rows_; }
   int getCols() const { return cols_; }
@@ -204,5 +204,5 @@ private:
 
   int rows_ = 0;
   int cols_ = 0;
-  uint64_t generation_ = 0;
+  std::atomic<uint64_t> generation_{0};
 };

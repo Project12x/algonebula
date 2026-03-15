@@ -565,12 +565,17 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto *flag = &gpuActive;
     gpuPending.store(true, std::memory_order_relaxed);
     auto *pending = &gpuPending;
-    juce::MessageManager::callAsync([mgr, flag, pending, eType, gRows, gCols]() {
-      if (mgr->setEngine(eType, gRows, gCols) && mgr->start()) {
-        flag->store(true, std::memory_order_relaxed);
+    uint64_t seedVal = reseedRng;
+    juce::MessageManager::callAsync([mgr, flag, pending, eType, gRows, gCols, seedVal]() {
+      if (mgr->setEngine(eType, gRows, gCols)) {
+        mgr->seed(seedVal, 0.3f);
+        if (mgr->start()) {
+          flag->store(true, std::memory_order_relaxed);
+        }
       }
       pending->store(false, std::memory_order_relaxed);
     });
+    reseedCooldown = 120; // let GPU warm up before checking stagnation
   } else if (!wantGpu && gpuActive.load(std::memory_order_relaxed)) {
     gpuActive.store(false, std::memory_order_relaxed);
     auto *mgr = &gpuCompute;
@@ -582,15 +587,39 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     buffer.clear(ch, 0, numSamples);
 
   // --- Handle transport requests from UI thread ---
+  bool isGpu = gpuActive.load(std::memory_order_relaxed);
+
   // Seed change from user input
   if (seedChanged.load(std::memory_order_relaxed)) {
     reseedRng = currentSeed.load(std::memory_order_relaxed);
     seedChanged.store(false, std::memory_order_relaxed);
+    // In GPU mode, re-seed the GPU simulation
+    if (isGpu) {
+      auto *mgr = &gpuCompute;
+      juce::MessageManager::callAsync([mgr, reseedRng = reseedRng]() {
+        mgr->seed(reseedRng, 0.3f);
+      });
+    } else {
+      engine->randomize(reseedRng, 0.3f);
+    }
+    stagnationCounter = 0;
+    lastAliveCount = 0;
+    // Release all voices on seed change (graceful fade-out)
+    for (int i = 0; i < kMaxVoices; ++i)
+      voices[i].noteOff();
   }
 
   // Clear grid request
   if (clearRequested.exchange(false, std::memory_order_relaxed)) {
-    engine->clear();
+    if (isGpu) {
+      auto *mgr = &gpuCompute;
+      juce::MessageManager::callAsync([mgr]() { mgr->clearState(); });
+    } else {
+      engine->clear();
+    }
+    // Kill all voices immediately on clear
+    for (int i = 0; i < kMaxVoices; ++i)
+      voices[i].reset();
     stagnationCounter = 0;
     lastAliveCount = 0;
   }
@@ -601,9 +630,19 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     reseedRng ^= reseedRng >> 7;
     reseedRng ^= reseedRng << 17;
     currentSeed.store(reseedRng, std::memory_order_relaxed);
-    engine->randomizeSymmetric(reseedRng, 0.3f);
+    if (isGpu) {
+      auto *mgr = &gpuCompute;
+      juce::MessageManager::callAsync([mgr, reseedRng = reseedRng]() {
+        mgr->seed(reseedRng, 0.3f);
+      });
+    } else {
+      engine->randomizeSymmetric(reseedRng, 0.3f);
+    }
     stagnationCounter = 0;
     lastAliveCount = 0;
+    // Release all voices on reseed (graceful fade-out)
+    for (int i = 0; i < kMaxVoices; ++i)
+      voices[i].noteOff();
   }
 
   // --- Read symmetry mode ---
@@ -655,54 +694,79 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Auto-reseed logic moved after readLock in stepTriggeredThisBlock check
   if (stepTriggeredThisBlock) {
-    // Only check if reseed is needed if stagnation/overpop was detected during the grid scan
-    if (stagnationCounter >= 8) {
-      auto &grid = engine->getGridMutable();
-      const int rows = grid.getRows();
-      const int cols = grid.getCols();
-      for (int i = 0; i < 5; ++i) {
-        reseedRng ^= reseedRng << 13;
-        reseedRng ^= reseedRng >> 7;
-        reseedRng ^= reseedRng << 17;
+    // Decrement reseed cooldown
+    if (reseedCooldown > 0) {
+      --reseedCooldown;
+    }
+    // GPU needs much higher threshold since readback lags behind simulation
+    int stagnationThreshold = isGpu ? 60 : 8;
+    if (reseedCooldown == 0 && stagnationCounter >= stagnationThreshold) {
+      reseedRng ^= reseedRng << 13;
+      reseedRng ^= reseedRng >> 7;
+      reseedRng ^= reseedRng << 17;
+      currentSeed.store(reseedRng, std::memory_order_relaxed);
 
-        if (useSymmetry) {
-          int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
-          int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
-          int mirrorR = rows - 1 - r;
-          int mirrorC = cols - 1 - c;
-          grid.setCell(r, c, 1);
-          grid.setAge(r, c, 1);
-          grid.setCell(r, mirrorC, 1);
-          grid.setAge(r, mirrorC, 1);
-          grid.setCell(mirrorR, c, 1);
-          grid.setAge(mirrorR, c, 1);
-          grid.setCell(mirrorR, mirrorC, 1);
-          grid.setAge(mirrorR, mirrorC, 1);
-        } else {
-          int r = static_cast<int>(reseedRng % rows);
-          int c = static_cast<int>((reseedRng >> 16) % cols);
-          grid.setCell(r, c, 1);
-          grid.setAge(r, c, 1);
+      if (isGpu) {
+        auto *mgr = &gpuCompute;
+        juce::MessageManager::callAsync([mgr, reseedRng = reseedRng]() {
+          mgr->seed(reseedRng, 0.3f);
+        });
+      } else {
+        auto &grid = engine->getGridMutable();
+        const int rows = grid.getRows();
+        const int cols = grid.getCols();
+        for (int i = 0; i < 5; ++i) {
+          reseedRng ^= reseedRng << 13;
+          reseedRng ^= reseedRng >> 7;
+          reseedRng ^= reseedRng << 17;
+
+          if (useSymmetry) {
+            int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
+            int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
+            int mirrorR = rows - 1 - r;
+            int mirrorC = cols - 1 - c;
+            grid.setCell(r, c, 1);
+            grid.setAge(r, c, 1);
+            grid.setCell(r, mirrorC, 1);
+            grid.setAge(r, mirrorC, 1);
+            grid.setCell(mirrorR, c, 1);
+            grid.setAge(mirrorR, c, 1);
+            grid.setCell(mirrorR, mirrorC, 1);
+            grid.setAge(mirrorR, mirrorC, 1);
+          } else {
+            int r = static_cast<int>(reseedRng % rows);
+            int c = static_cast<int>((reseedRng >> 16) % cols);
+            grid.setCell(r, c, 1);
+            grid.setAge(r, c, 1);
+          }
         }
       }
-      currentSeed.store(reseedRng, std::memory_order_relaxed);
+      reseedCooldown = isGpu ? 120 : 0; // GPU needs time for readback
       stagnationCounter = 0;
     }
 
     // Overpopulation check driven by subsampled grid
-    if (overpopCounter >= 3) {
+    if (reseedCooldown == 0 && overpopCounter >= 3) {
       // Clear and reseed sparsely to break saturation
       reseedRng ^= reseedRng << 13;
       reseedRng ^= reseedRng >> 7;
       reseedRng ^= reseedRng << 17;
       currentSeed.store(reseedRng, std::memory_order_relaxed);
-      if (useSymmetry)
-        engine->randomizeSymmetric(reseedRng, 0.15f);
-      else
-        engine->randomize(reseedRng, 0.15f);
+      if (isGpu) {
+        auto *mgr = &gpuCompute;
+        juce::MessageManager::callAsync([mgr, reseedRng = reseedRng]() {
+          mgr->seed(reseedRng, 0.15f);
+        });
+      } else {
+        if (useSymmetry)
+          engine->randomizeSymmetric(reseedRng, 0.15f);
+        else
+          engine->randomize(reseedRng, 0.15f);
+      }
       overpopCounter = 0;
       stagnationCounter = 0;
       lastAliveCount = 0;
+      reseedCooldown = isGpu ? 120 : 0; // GPU needs time for readback
     }
   }
 
@@ -764,9 +828,15 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       }
     }
     
-    // Auto-reseed check logic
+    // Auto-reseed check logic — only track stagnation when there are alive cells.
+    // At GPU warmup or when simulation is truly dead, alive=0 triggers a reseed
+    // via the stagnation path below, but we need > 0 before we start counting.
     if (cellsChecked > 0) {
-      if (countAliveBlocked == lastAliveCount) {
+      if (countAliveBlocked == 0) {
+        // Simulation is dead — increment stagnation to trigger reseed
+        ++stagnationCounter;
+        // Don't update lastAliveCount so the first real data will reset
+      } else if (countAliveBlocked == lastAliveCount) {
         ++stagnationCounter;
       } else {
         stagnationCounter = 0;

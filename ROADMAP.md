@@ -531,7 +531,7 @@ Explicit pause-and-review checkpoints:
 - [x] Float bridge: generation-gated `convertToGrid` (prevents 1.6M ops/sec at large grids)
 - [x] Float intensity preserved as age (0-255) for continuous engine visualization
 - [x] Voice triggering via `wasBornLocked()` on float buffers
-- [ ] Stagnation detection and auto-reseed work with GPU grid — deferred
+- [x] Stagnation detection and auto-reseed work with GPU grid (v0.13.1: forwards to GPU, cooldown prevents loop)
 - [ ] Equivalence tests: GPU vs CPU produce matching CA evolution — deferred
 
 ### Phase 13d — 3D Visualization (pending)
@@ -542,8 +542,11 @@ Explicit pause-and-review checkpoints:
 - [ ] Camera orbit, color palettes (Nebula default)
 
 ### Known Issues
-- [ ] GPU crash on Brownian engine — needs investigation
+- [x] ~~**UI hang at 512x512+**~~: Fixed — GridComponent paint optimization (skip dead cells, fillRect for tiny cells)
+- [x] ~~GPU crash on Brownian engine~~: Fixed — inline shader was missing `walkDeposit` entry point
+- [x] ~~GPU crash on Particle Swarm~~: Fixed — inline shader was missing `moveParticles` entry point
 - [ ] Grid conversion toggle (binary vs. float mode) not yet implemented
+- [ ] GPU `randomizeSymmetric()` and factory patterns not implemented (CPU-only)
 - [ ] Stale JUCE state restoring large grid sizes (1280x1280) — workaround: clear `%APPDATA%\Algo Nebula`
 
 **Testing Milestone:**

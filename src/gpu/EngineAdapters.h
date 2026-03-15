@@ -100,10 +100,13 @@ public:
 
   void generateInitialState(std::vector<float> &state) const override {
     // 30% alive, rest dead (no dying at start)
-    uint64_t rng = 42;
+    uint64_t rng = rngSeed_;
+    int densityPct = static_cast<int>(density_ * 100.0f);
+    if (densityPct < 1) densityPct = 1;
+    if (densityPct > 100) densityPct = 100;
     for (auto &v : state) {
       rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
-      v = ((rng >> 33) % 100 < 30) ? 1.0f : 0.0f;
+      v = ((rng >> 33) % 100 < static_cast<uint64_t>(densityPct)) ? 1.0f : 0.0f;
     }
   }
 };
@@ -134,7 +137,7 @@ public:
   }
 
   void generateInitialState(std::vector<float> &state) const override {
-    uint64_t rng = 42;
+    uint64_t rng = rngSeed_;
     for (auto &v : state) {
       rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
       v = float((rng >> 33) % numStates_) / float(numStates_ - 1);
@@ -284,6 +287,16 @@ public:
 
   // Particle Swarm needs the "decayTrails" entry point for the grid pass
   const char *getEntryPoint() const override { return "decayTrails"; }
+  // Secondary pass moves particles and deposits trails
+  const char *getSecondaryEntryPoint() const override {
+    return "moveParticles";
+  }
+  void getSecondaryDispatch(uint32_t &x, uint32_t &y,
+                            uint32_t &z) const override {
+    x = (numParticles_ + 63) / 64; // workgroup_size(64)
+    y = 1;
+    z = 1;
+  }
 
   uint32_t extraBufferCount() const override { return 1; }
   uint64_t extraBufferSize(uint32_t) const override {
@@ -351,6 +364,16 @@ public:
   }
 
   const char *getEntryPoint() const override { return "diffuseDecay"; }
+  // Secondary pass does random walk + energy deposit
+  const char *getSecondaryEntryPoint() const override {
+    return "walkDeposit";
+  }
+  void getSecondaryDispatch(uint32_t &x, uint32_t &y,
+                            uint32_t &z) const override {
+    x = (numWalkers_ + 63) / 64; // workgroup_size(64)
+    y = 1;
+    z = 1;
+  }
 
   uint32_t extraBufferCount() const override { return 1; }
   uint64_t extraBufferSize(uint32_t) const override {

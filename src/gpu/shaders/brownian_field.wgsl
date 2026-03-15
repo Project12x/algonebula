@@ -47,6 +47,9 @@ fn diffuseDecay(@builtin(global_invocation_id) gid: vec3<u32>) {
     return;
   }
 
+  // Dummy read to ensure binding 3 is in auto-layout for shared bind groups
+  _ = walkers[0];
+
   let center = stateIn[idx(row, col)];
 
   // Average of 4 cardinal neighbors (for diffusion)
@@ -68,6 +71,9 @@ fn walkDeposit(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (wid >= params.numWalkers) {
     return;
   }
+
+  // Dummy read to ensure binding 1 is in auto-layout for shared bind groups
+  _ = stateIn[0];
 
   let base = wid * 2u;
   var wx = walkers[base];

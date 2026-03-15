@@ -3,6 +3,28 @@
 All notable changes to Algo Nebula will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.1] - 2026-03-14
+
+### Fixed
+
+- **GPU seed propagation**: `generateInitialState()` was hardcoded to seed 42 / 25% density in base class AND in `BriansBrainCompute` and `CyclicCACompute` overrides. All now use `rngSeed_` / `density_` from `setInitSeed()`.
+- **GPU init seeding**: `GpuComputeManager::seed(rngSeed, density)` now stores seed/density via `setInitSeed()` before calling adapter `seed()`. GPU init in `processBlock` passes user's current seed to `mgr->seed()` before `mgr->start()`.
+- **Auto-reseed GPU forwarding**: Stagnation and overpopulation detection now forward reseed to `gpuCompute.seed()` via `callAsync` when GPU is active, instead of only modifying CPU engine grid.
+- **Transport controls GPU forwarding**: Clear, reseed, and new seed buttons now forward to `GpuComputeManager` when GPU is active.
+- **Reseed loop fix**: Added `reseedCooldown` counter (120 ticks after GPU init/reseed) and raised GPU stagnation threshold to 60 ticks (CPU stays at 8) to prevent rapid-fire reseeding.
+- **Thread safety**: `GpuGridBridge::generation_` changed from `uint64_t` to `std::atomic<uint64_t>` with acquire/release ordering.
+- **ParticleSwarm + BrownianField GPU crash**: Inline WGSL shaders in `EngineAdapters.cpp` were truncated — missing secondary entry points (`moveParticles` / `walkDeposit`). Both now include complete dual-pass shader code with dummy binding reads.
+- **Sound persistence after clear**: Transport handlers (clear/reseed/seed) now kill active voices — `reset()` on clear (instant silence), `noteOff()` on reseed (graceful fade).
+- **UI paint optimization at large grids**: Skip dead cell rendering (background covers them), use `fillRect` instead of `fillRoundedRectangle` for cells < 4px, skip glow effects for cells < 6px.
+
+### Added
+
+- Diagnostic logging in `GpuComputeManager::setEngine()` — logs engine type, rows, cols to `gpu_log.txt`.
+
+### Known Issues
+
+- GPU patterns and symmetry not implemented (CPU-only features `randomizeSymmetric()` and `FactoryPatternLibrary::applyPattern()` have no GPU equivalents).
+
 ## [0.13.0] - 2026-03-14
 
 ### Added

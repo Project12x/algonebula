@@ -11,6 +11,16 @@
 #endif
 
 bool GpuComputeManager::setEngine(EngineType type, int rows, int cols) {
+  {
+    auto logPath = juce::File::getSpecialLocation(
+      juce::File::userApplicationDataDirectory).getChildFile("Algo Nebula").getChildFile("gpu_log.txt");
+    FILE *f = fopen(logPath.getFullPathName().toRawUTF8(), "a");
+    if (f) {
+      fprintf(f, "[GpuComputeManager] setEngine type=%d rows=%d cols=%d\n",
+              static_cast<int>(type), rows, cols);
+      fclose(f);
+    }
+  }
   stop();
   rows_ = rows;
   cols_ = cols;
@@ -95,14 +105,31 @@ void GpuComputeManager::shutdownGpu() {
   deviceReady_ = false;
 }
 
-void GpuComputeManager::seed(uint64_t /*rngSeed*/, float /*density*/) {
-  if (simulation_)
-    simulation_->seed();
+void GpuComputeManager::seed(uint64_t rngSeed, float density) {
+  if (!simulation_)
+    return;
+  auto *adapter = dynamic_cast<algonebula::GridComputeAdapter *>(simulation_.get());
+  if (adapter) {
+    adapter->setInitSeed(rngSeed, density);
+    adapter->seed();
+  }
 }
 
 void GpuComputeManager::clearState() {
-  if (simulation_)
-    simulation_->reset();
+  if (!simulation_)
+    return;
+  auto *adapter = dynamic_cast<algonebula::GridComputeAdapter *>(simulation_.get());
+  if (!adapter)
+    return;
+
+  // Write zeros to both state buffers
+  size_t bufSize = adapter->stateBufferSize();
+  std::vector<float> zeros(bufSize / sizeof(float), 0.0f);
+  auto queue = wgpuDeviceGetQueue(adapter->getDevice());
+  wgpuQueueWriteBuffer(queue, adapter->getStateBufferByIndex(0), 0,
+                       zeros.data(), bufSize);
+  wgpuQueueWriteBuffer(queue, adapter->getStateBufferByIndex(1), 0,
+                       zeros.data(), bufSize);
 }
 
 static WGPUStringView toSV(const char *s) { return {s, s ? strlen(s) : 0}; }
@@ -147,11 +174,34 @@ void GpuComputeManager::timerCallback() {
     int r = rows_;
     int c = cols_;
     auto *br = &bridge_;
+    static int readbackCount = 0;
+    int rbIdx = readbackCount++;
     for (auto &req : requests) {
       readbackMgr_.requestReadback(
-          encoder, req, [br, r, c](const ghostsun::ReadbackResult &result) {
+          encoder, req, [br, r, c, rbIdx](const ghostsun::ReadbackResult &result) {
             br->updateFromGpu(
                 reinterpret_cast<const float *>(result.data.data()), r, c);
+            // Log state diagnostics on first few readbacks
+            if (rbIdx < 10 || rbIdx % 60 == 0) {
+              auto *data = reinterpret_cast<const float *>(result.data.data());
+              int count = (int)(result.data.size() / sizeof(float));
+              float sum = 0.0f, mx = 0.0f;
+              int nonzero = 0;
+              for (int i = 0; i < count; ++i) {
+                float v = data[i];
+                sum += v;
+                if (v > mx) mx = v;
+                if (v > 0.001f) nonzero++;
+              }
+              // Use getGpuLogFile from GridComputeAdapter
+              FILE* f = fopen((std::string(getenv("APPDATA")) + "\\Algo Nebula\\gpu_log.txt").c_str(), "a");
+              if (f) {
+                fprintf(f, "[Readback#%d] cells=%d nonzero=%d sum=%.4f max=%.4f\n",
+                        rbIdx, count, nonzero, sum, mx);
+                fflush(f);
+                fclose(f);
+              }
+            }
           });
     }
   }
