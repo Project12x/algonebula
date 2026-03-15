@@ -499,8 +499,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   juce::ScopedNoDenormals noDenormals;
 
-  // Drain UI cell edits into engine grid (bounded)
-  cellEditQueue.drainInto(engine->getGridMutable());
+  // Cell edits drained by CpuStepTimer on message thread
 
   // Process virtual MIDI keyboard input
   keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
@@ -564,20 +563,30 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (algoIdx != lastAlgorithmIdx || gridSizeIdx != lastGridSizeIdx) {
     lastAlgorithmIdx = algoIdx;
     lastGridSizeIdx = gridSizeIdx;
-    // Create new engine with updated dimensions
-    engine = createEngine(algoIdx, gridRows, gridCols);
-    engine->randomize(reseedRng, 0.3f);
     // Release all voices when switching engine
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
 
-    // GPU needs reinit with new engine ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â stop current, toggle-on will reinit
+    // GPU needs reinit with new engine -- stop current, toggle-on will reinit
     if (gpuActive.load(std::memory_order_relaxed)) {
       gpuActive.store(false, std::memory_order_relaxed);
       auto *mgr = &gpuCompute;
       juce::MessageManager::callAsync([mgr]() { mgr->stop(); });
     }
 
+    // Defer engine recreation to message thread (timer uses engine pointer)
+    cpuStepTimer_.stop();
+    int capturedAlgo = algoIdx;
+    int capturedRows = gridRows;
+    int capturedCols = gridCols;
+    uint64_t capturedSeed = reseedRng;
+    juce::MessageManager::callAsync([this, capturedAlgo, capturedRows, capturedCols, capturedSeed]() {
+      engine = createEngine(capturedAlgo, capturedRows, capturedCols);
+      engine->randomize(capturedSeed, 0.3f);
+      gpuCompute.getBridge().updateFromCpu(engine->getGrid());
+      cpuStepTimer_.setTargets(engine.get(), &gpuCompute.getBridge(), &cellEditQueue);
+      cpuStepTimer_.start();
+    });
   }
   // Toggle GPU on/off ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â defer to message thread for timer/device safety
   if (wantGpu && !gpuActive.load(std::memory_order_relaxed) && !gpuPending.load(std::memory_order_relaxed)) {
@@ -623,7 +632,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         mgr->seed(reseedRng, 0.3f);
       });
     } else {
-      engine->randomize(reseedRng, 0.3f);
+      cpuStepTimer_.requestReseed(reseedRng, 0.3f, false);
     }
     stagnationCounter = 0;
     lastAliveCount = 0;
@@ -638,7 +647,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       auto *mgr = &gpuCompute;
       juce::MessageManager::callAsync([mgr]() { mgr->clearState(); });
     } else {
-      engine->clear();
+      cpuStepTimer_.requestClear();
     }
     // Kill all voices immediately on clear
     for (int i = 0; i < kMaxVoices; ++i)
@@ -659,7 +668,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         mgr->seed(reseedRng, 0.3f);
       });
     } else {
-      engine->randomizeSymmetric(reseedRng, 0.3f);
+      cpuStepTimer_.requestReseed(reseedRng, 0.3f, true);
     }
     stagnationCounter = 0;
     lastAliveCount = 0;
@@ -676,7 +685,10 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Load factory pattern request
   int patternIdx = loadPatternRequested.exchange(-1, std::memory_order_relaxed);
   if (patternIdx >= 0) {
-    FactoryPatternLibrary::applyPattern(engine->getGridMutable(), patternIdx);
+    // Defer pattern load to message thread (engine safety)
+    juce::MessageManager::callAsync([this, patternIdx]() {
+      FactoryPatternLibrary::applyPattern(engine->getGridMutable(), patternIdx);
+    });
     stagnationCounter = 0;
     lastAliveCount = 0;
   }
