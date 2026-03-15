@@ -820,6 +820,60 @@ range clamp) runs on top of all modes.
 - [ ] Per-mode parameter panels (e.g., playhead count for Piano Roll,
   agent count for Graph Traversal)
 
+### v2.5 — Direct CA Sampling
+
+Bypass grid-cell-to-note mapping entirely. Extract macro-level properties
+from the CA simulation and map them to musical parameters. The CA becomes
+a continuous signal source rather than a note trigger grid.
+
+**Statistical / Macro Sampling:**
+- [ ] Population density → note density and velocity
+- [ ] Birth rate → attack probability / rhythmic activity
+- [ ] Death rate → decay/release character (high death = staccato)
+- [ ] Center of mass movement → melody direction (mass shifts right = pitch rises)
+- [ ] Cluster count → polyphony (N clusters = N simultaneous voices)
+
+**Spatial Analysis:**
+- [ ] 2D FFT: dominant spatial frequencies → pitch mapping (low freq = bass,
+  high freq = treble). CA pattern structure determines harmony
+- [ ] Edge detection: only boundary cells (alive adjacent to dead) trigger notes.
+  Boundaries are where the action is — naturally more musical
+- [ ] Symmetry detection: bilateral/rotational symmetry → consonance level.
+  High symmetry = consonant output, low symmetry = dissonant
+
+**Pattern Recognition:**
+- [ ] Glider detection → arpeggios (moving patterns = moving melodies)
+- [ ] Oscillator detection → drones/pulses (periodic patterns = held tones)
+- [ ] Still life detection → sustained chords (stable = sustained)
+- [ ] Chaos/entropy detection → free-form generative output
+
+**Time-Series Control Signals:**
+- [ ] Global population over time → slow-moving filter/reverb/tempo modulation
+- [ ] Entropy tracking → musical complexity (high entropy = dense, low = sparse)
+- [ ] Periodicity detection → tempo sync (oscillating CA = rhythmic output)
+
+### v2.6 — Novel CA Visualizations (WebGPU)
+
+Non-grid visual modes rendered via WebGPU compute/render pipeline.
+The CA simulation is the same; the visualization reinterprets cell state
+into non-rectilinear forms.
+
+- [ ] **Nebula Gas Cloud**: blur living cells into continuous density field,
+  birth=luminous pulses, death=cooling trails, dead space=void
+- [ ] **Particle System**: each living cell emits particles (born=burst,
+  dying=fade, stable=drift). Millions of particles via compute shader
+- [ ] **3D Topology**: map 2D grid onto torus/sphere/Klein bottle, cell state
+  as color/height. Orbitable camera. Clusters become terrain features
+- [ ] **Network Graph**: living cells=nodes, adjacent alive=edges.
+  Force-directed layout. CA becomes pulsing neural-network-like organism
+- [ ] **Metaballs**: living cells as soft blobs that merge when adjacent.
+  Smooth organic shapes instead of sharp pixels
+- [ ] **Spectral Ribbons**: each row becomes a 3D ribbon, amplitude=cell density.
+  Time-scrolling creates flowing curtains of activity
+- [ ] Visualization mode selector (separate from grid interpretation mode)
+- [ ] Visualization can run independently of grid interpretation mode
+  (e.g., Nebula Gas Cloud visual + Piano Roll music interpretation)
+
 ### v3.0 — Experimental Algorithms (Tier 3)
 - Markov Chain, Predator-Prey, Neural CA, DLA, L-System Grid
 
