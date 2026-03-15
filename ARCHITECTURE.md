@@ -17,6 +17,49 @@ GpuComputeManager (7 GPU adapters, message thread, WebGPU/Dawn)
     -> DAC
 ```
 
+## Grid-to-Music Mapping
+
+On each clock step (driven by BPM + division), `processBlock` scans the grid for newly born cells and maps them to synth voices:
+
+```
+1. BIRTH DETECTION (per clock step)
+   For each cell in the grid:
+     - CPU: grid.wasBorn(r, c) checks birth flag
+     - GPU: GpuGridBridge::wasBornLocked(current, previous, r, c)
+       (current > 0.5 AND previous <= 0.5, i.e., cell just appeared)
+   
+2. TRIGGER BUDGET
+   Each engine defines a max voices-per-step (triggerBudget):
+     GoL=8, Brian's Brain=6, Cyclic=5, R-D=4, Lenia=4,
+     ParticleSwarm=4, BrownianField=6
+   Only the first N newborn cells fire notes.
+
+3. PITCH: cell position -> MIDI note
+   ScaleQuantizer::quantize(row, col, rows, cols, ...)
+     - Row maps to pitch range (higher rows = higher notes)
+     - Constrained to the selected scale (15 scales x 12 root keys)
+     - Optional Pitch Gravity: bias toward melodic neighbors
+     - Optional Consonance Filter: snap dissonant intervals
+
+4. VELOCITY: cell intensity -> loudness
+   - GpuGridBridge::getCellIntensityLocked() reads float value
+   - Multiplied by optional velocity humanization (random +/- offset)
+   - Multiplied by engine gain scale (GoL=1.0, R-D=0.4, Lenia=0.4, etc.)
+
+5. STEREO: column position -> pan
+   - pan = (2 * col / (cols-1) - 1) * stereoWidth
+   - Left edge = full left, right edge = full right
+
+6. VOICE ALLOCATION
+   - 64-voice pool with round-robin or lowest-envelope stealing
+   - Each voice: PolyBLEP oscillator + sub + noise + AHDSR + SVF filter
+   - Gate time: auto-release after fractional step interval
+   - Strum spread: onset delay per column position
+```
+
+The visualization IS the music: cells appearing in different rows produce
+different pitches, and their column determines stereo position.
+
 ## GPU / CPU Dual Path
 
 ```

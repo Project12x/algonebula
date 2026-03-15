@@ -23,7 +23,8 @@ public:
     const float cellW = static_cast<float>(getWidth()) / cols;
     const float cellH = static_cast<float>(getHeight()) / rows;
     const float cellSize = std::min(cellW, cellH);
-    const float gap = 1.0f;
+    // Scale gap with cell size: 15% of cell, max 2px, zero when cells are tiny
+    const float gap = (cellSize > 3.0f) ? std::min(cellSize * 0.15f, 2.0f) : 0.0f;
 
     // Center the grid
     const float totalW = cellSize * cols;
@@ -46,12 +47,12 @@ public:
       for (int c = 0; c < cols; ++c) {
         uint8_t cellState = grid.getCell(r, c);
         if (cellState == 0)
-          continue; // dead cell — background already covers it
+          continue; // dead cell -- background already covers it
 
         float x = offsetX + c * cellSize + gap * 0.5f;
         float y = offsetY + r * cellSize + gap * 0.5f;
-        float w = cellSize - gap;
-        float h = cellSize - gap;
+        float w = std::max(cellSize - gap, 1.0f); // ensure at least 1px
+        float h = std::max(cellSize - gap, 1.0f);
 
         juce::Colour cellColour;
 

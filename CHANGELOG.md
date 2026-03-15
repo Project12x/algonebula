@@ -16,10 +16,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **ParticleSwarm + BrownianField GPU crash**: Inline WGSL shaders in `EngineAdapters.cpp` were truncated — missing secondary entry points (`moveParticles` / `walkDeposit`). Both now include complete dual-pass shader code with dummy binding reads.
 - **Sound persistence after clear**: Transport handlers (clear/reseed/seed) now kill active voices — `reset()` on clear (instant silence), `noteOff()` on reseed (graceful fade).
 - **UI paint optimization at large grids**: Skip dead cell rendering (background covers them), use `fillRect` instead of `fillRoundedRectangle` for cells < 4px, skip glow effects for cells < 6px.
+- **Large grid visualization (>256x256)**: Fixed 1px fixed gap consuming entire cell width at high resolutions. Gap now scales proportionally (15% of cellSize, max 2px, zero when cells < 3px). Cells guaranteed minimum 1px draw size.
 
 ### Added
 
 - Diagnostic logging in `GpuComputeManager::setEngine()` — logs engine type, rows, cols to `gpu_log.txt`.
+- Grid-to-Music Mapping documentation added to `ARCHITECTURE.md` (birth detection, trigger budget, pitch/velocity/stereo mapping, voice allocation).
 
 ### Known Issues
 
