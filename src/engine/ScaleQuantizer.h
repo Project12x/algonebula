@@ -151,6 +151,31 @@ public:
     return quantizeToNearest(clamped);
   }
 
+  /// Graduated dissonance weight for an interval.
+  /// tritone=3, m2/M7=2, M2/m7=1, consonant=0.
+  /// From Poompatoom applyVoiceLeading() — confirmed working.
+  static int dissonanceWeight(int interval) {
+    int i = interval % 12;
+    if (i < 0)
+      i += 12;
+    if (i == 6)
+      return 3; // tritone
+    if (i == 1 || i == 11)
+      return 2; // m2 / M7
+    if (i == 2 || i == 10)
+      return 1; // M2 / m7
+    return 0;   // consonant (P4, P5, m3, M3, m6, M6, 8ve)
+  }
+
+  /// Cumulative dissonance score of a candidate against all active notes.
+  static int scoreDissAgainstAll(int candidateNote, const int *activeNotes,
+                                 int activeCount) {
+    int total = 0;
+    for (int i = 0; i < activeCount; ++i)
+      total += dissonanceWeight(candidateNote - activeNotes[i]);
+    return total;
+  }
+
   /// Check if two MIDI notes form a consonant interval.
   /// Consonant: unison(0), m3(3), M3(4), P4(5), P5(7), m6(8), M6(9), octave(12)
   /// Dissonant: m2(1), M2(2), tritone(6), m7(10), M7(11)

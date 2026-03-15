@@ -167,6 +167,7 @@ private:
   int lastGridSizeIdx = 1;        // Default to Medium (12x16)
   float densityGain = 1.0f;       // Updated each step from grid density
   int lastTriggeredMidiNote = 60; // For melodic inertia
+  int lastMelodicDirection_ = 1;  // +1 ascending, -1 descending
   uint64_t musicRng = 42;         // RNG for probability/humanization
 
 public:
