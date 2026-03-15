@@ -464,7 +464,11 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   // Initialize engine with default seed
   engine->randomize(42, 0.3f);
   gpuCompute.getBridge().updateFromCpu(engine->getGrid());
-  gpuCompute.getBridge().convertToGrid(gridSnapshot);
+  {
+    int backIdx = 1 - gridReadIdx_.load(std::memory_order_relaxed);
+    gpuCompute.getBridge().convertToGrid(gridSnapshots_[backIdx]);
+    gridReadIdx_.store(backIdx, std::memory_order_release);
+  }
   engineGeneration.store(0, std::memory_order_relaxed);
 
   // Initialize clock
@@ -1400,7 +1404,9 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     bool shouldConvert = (bridgeGen % convertSkip == 0);
     lastSnapshotGeneration_ = bridgeGen;
     if (shouldConvert) {
-      bridge.convertToGrid(gridSnapshot);
+      int backIdx = 1 - gridReadIdx_.load(std::memory_order_relaxed);
+      bridge.convertToGrid(gridSnapshots_[backIdx]);
+      gridReadIdx_.store(backIdx, std::memory_order_release);
     }
   }
   engineGeneration.store(engine->getGeneration(), std::memory_order_relaxed);
@@ -1544,7 +1550,11 @@ void AlgoNebulaProcessor::setStateInformation(const void *data,
 
   // Update bridge and snapshot from restored engine state
   gpuCompute.getBridge().updateFromCpu(engine->getGrid());
-  gpuCompute.getBridge().convertToGrid(gridSnapshot);
+  {
+    int backIdx = 1 - gridReadIdx_.load(std::memory_order_relaxed);
+    gpuCompute.getBridge().convertToGrid(gridSnapshots_[backIdx]);
+    gridReadIdx_.store(backIdx, std::memory_order_release);
+  }
   stagnationCounter = 0;
   lastAliveCount = 0;
 }

@@ -82,7 +82,9 @@ public:
   }
 
   // --- Engine access (UI thread reads grid snapshot, pushes edits) ---
-  const Grid &getGridSnapshot() const { return gridSnapshot; }
+  const Grid &getGridSnapshot() const {
+    return gridSnapshots_[gridReadIdx_.load(std::memory_order_acquire)];
+  }
   CellEditQueue &getCellEditQueue() { return cellEditQueue; }
   uint64_t getGeneration() const {
     return engineGeneration.load(std::memory_order_relaxed);
@@ -134,7 +136,8 @@ private:
   std::unique_ptr<CellularEngine> engine;
   static std::unique_ptr<CellularEngine>
   createEngine(int algoIdx, int rows = 12, int cols = 16);
-  Grid gridSnapshot; // Double-buffer: audio writes, GL/UI reads
+  Grid gridSnapshots_[2]; // Double-buffered: audio writes back, UI reads front
+  std::atomic<int> gridReadIdx_{0}; // 0 or 1: which buffer UI reads
   CellEditQueue cellEditQueue;
   std::atomic<uint64_t> engineGeneration{0};
   uint64_t lastSnapshotGeneration_{UINT64_MAX}; // sentinel: always convert on first call
