@@ -10,6 +10,7 @@
 #include "engine/BrownianField.h"
 #include "engine/CellEditQueue.h"
 #include "engine/CellularEngine.h"
+#include "engine/CpuStepTimer.h"
 #include "engine/ClockDivider.h"
 #include "engine/CyclicCA.h"
 #include "engine/FactoryPatternLibrary.h"
@@ -139,6 +140,7 @@ private:
   Grid gridSnapshots_[2]; // Double-buffered: audio writes back, UI reads front
   std::atomic<int> gridReadIdx_{0}; // 0 or 1: which buffer UI reads
   CellEditQueue cellEditQueue;
+  CpuStepTimer cpuStepTimer_;
   std::atomic<uint64_t> engineGeneration{0};
   uint64_t lastSnapshotGeneration_{UINT64_MAX}; // sentinel: always convert on first call
 

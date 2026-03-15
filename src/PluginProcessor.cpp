@@ -471,6 +471,10 @@ void AlgoNebulaProcessor::prepareToPlay(double sampleRate,
   }
   engineGeneration.store(0, std::memory_order_relaxed);
 
+  // Initialize CPU step timer (runs engine->step() on message thread)
+  cpuStepTimer_.setTargets(engine.get(), &gpuCompute.getBridge(), &cellEditQueue);
+  cpuStepTimer_.start();
+
   // Initialize clock
   clock.reset(sampleRate);
   clock.setBPM(120.0);
@@ -699,12 +703,10 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         stepTriggeredThisBlock = true;
     }
   } else {
-    // CPU path: step engine, then feed bridge
+    // CPU path: request step via message-thread timer (RT-safe)
     for (int i = 0; i < numSamples; ++i) {
       if (clock.tick() && isRunning && !isFrozen) {
-        engine->getGridMutable().snapshotPrev();
-        engine->step();
-        bridge.updateFromCpu(engine->getGrid());
+        cpuStepTimer_.requestStep();
         stepTriggeredThisBlock = true;
       }
     }
@@ -730,34 +732,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           mgr->seed(reseedRng, 0.3f);
         });
       } else {
-        auto &grid = engine->getGridMutable();
-        const int rows = grid.getRows();
-        const int cols = grid.getCols();
-        for (int i = 0; i < 5; ++i) {
-          reseedRng ^= reseedRng << 13;
-          reseedRng ^= reseedRng >> 7;
-          reseedRng ^= reseedRng << 17;
-
-          if (useSymmetry) {
-            int r = static_cast<int>(reseedRng % ((rows + 1) / 2));
-            int c = static_cast<int>((reseedRng >> 16) % ((cols + 1) / 2));
-            int mirrorR = rows - 1 - r;
-            int mirrorC = cols - 1 - c;
-            grid.setCell(r, c, 1);
-            grid.setAge(r, c, 1);
-            grid.setCell(r, mirrorC, 1);
-            grid.setAge(r, mirrorC, 1);
-            grid.setCell(mirrorR, c, 1);
-            grid.setAge(mirrorR, c, 1);
-            grid.setCell(mirrorR, mirrorC, 1);
-            grid.setAge(mirrorR, mirrorC, 1);
-          } else {
-            int r = static_cast<int>(reseedRng % rows);
-            int c = static_cast<int>((reseedRng >> 16) % cols);
-            grid.setCell(r, c, 1);
-            grid.setAge(r, c, 1);
-          }
-        }
+        cpuStepTimer_.requestReseed(reseedRng, 0.3f, useSymmetry);
       }
       reseedCooldown = isGpu ? 120 : 0; // GPU needs time for readback
       stagnationCounter = 0;
@@ -776,10 +751,7 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           mgr->seed(reseedRng, 0.15f);
         });
       } else {
-        if (useSymmetry)
-          engine->randomizeSymmetric(reseedRng, 0.15f);
-        else
-          engine->randomize(reseedRng, 0.15f);
+        cpuStepTimer_.requestOverpopReseed(reseedRng, 0.15f, useSymmetry);
       }
       overpopCounter = 0;
       stagnationCounter = 0;
