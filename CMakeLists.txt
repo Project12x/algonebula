@@ -100,6 +100,9 @@ target_sources(AlgoNebula PRIVATE
     src/gpu/GridComputeAdapter.cpp
     src/gpu/EngineAdapters.cpp
     src/gpu/GpuComputeManager.cpp
+    src/gpu/Lenia3DCompute.cpp
+    # GhostSun examples (SeparableLeniaEngine)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ghostsun/render/examples/engines/SeparableLeniaEngine.cpp
 )
 
 # --- Include Directories ---
@@ -108,6 +111,10 @@ target_include_directories(AlgoNebula PRIVATE
     # signalsmith: use include/ subdir to avoid windows.h shadowing the real Windows SDK header
     ${signalsmith_dsp_SOURCE_DIR}/include
     ${daisysp_SOURCE_DIR}/Source
+    # GhostSun examples (SeparableLeniaEngine)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ghostsun/render/examples
+    # Bridge for SeparableLeniaEngine.cpp self-include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gpu/bridge
 )
 
 # --- Compile Definitions ---

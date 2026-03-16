@@ -1,0 +1,19 @@
+CompileFlags:
+  Add:
+    - -Wno-unknown-pragmas
+    - --target=x86_64-pc-windows-msvc
+  Remove:
+    - /W*
+    - /wd*
+    - /EH*
+    - /GR*
+    - /MD*
+    - /O*
+    - /Zi
+    - /FS
+    - /fp:*
+
+Diagnostics:
+  Suppress:
+    - pp_file_not_found
+    - module_not_found

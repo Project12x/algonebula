@@ -11,7 +11,8 @@ enum class EngineType {
   ReactionDiffusion,
   ParticleSwarm,
   Lenia,
-  BrownianField
+  BrownianField,
+  Lenia3D
 };
 
 /// Abstract interface for all cellular automata engines.

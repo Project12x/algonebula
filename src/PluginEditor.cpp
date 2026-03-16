@@ -693,6 +693,8 @@ void AlgoNebulaEditor::resized() {
   auto gridArea = middleArea.removeFromLeft(getWidth() - controlsW - margin)
                       .reduced(margin, 4);
   gridComponent.setBounds(gridArea);
+  if (volumeComponent) volumeComponent->setBounds(gridArea);
+  updateViewMode();
 
   // Right side controls
   auto ctrlArea = middleArea.reduced(4, 0);
@@ -927,5 +929,24 @@ void AlgoNebulaEditor::timerCallback() {
       detectedKeyLabel.setText(
           juce::String("Key: ") + noteNames[key],
           juce::dontSendNotification);
+  }
+}
+
+void AlgoNebulaEditor::updateViewMode() {
+  bool want3D = processor.getEngine().getType() == EngineType::Lenia3D;
+  if (want3D == showing3D_) return;
+  showing3D_ = want3D;
+
+  if (want3D) {
+    gridComponent.setVisible(false);
+    if (!volumeComponent) {
+      volumeComponent = std::make_unique<VolumeComponent>(processor.getGpuComputeManager());
+      addAndMakeVisible(*volumeComponent);
+      volumeComponent->setBounds(gridComponent.getBounds());
+    }
+    volumeComponent->setVisible(true);
+  } else {
+    if (volumeComponent) volumeComponent->setVisible(false);
+    gridComponent.setVisible(true);
   }
 }

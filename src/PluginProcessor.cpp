@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "engine/Lenia3DStub.h"
 
 //==============================================================================
 AlgoNebulaProcessor::AlgoNebulaProcessor()
@@ -29,6 +30,8 @@ AlgoNebulaProcessor::createEngine(int algoIdx, int rows, int cols) {
     return std::make_unique<LeniaEngine>(rows, cols);
   case 7:
     return std::make_unique<BrownianField>(rows, cols);
+  case 8:
+    return std::make_unique<Lenia3DStub>(rows, cols);
   default:
     return std::make_unique<GameOfLife>(rows, cols,
                                         GameOfLife::RulePreset::Classic);
@@ -52,7 +55,7 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("algorithm", 1), "Algorithm",
       juce::StringArray{"Game of Life", "HighLife", "Brian's Brain",
                         "Cyclic CA", "Reaction-Diffusion", "Particle Swarm",
-                        "Lenia", "Brownian Field"},
+                        "Lenia", "Brownian Field", "Lenia 3D"},
       0));
 
   // --- Clock ---

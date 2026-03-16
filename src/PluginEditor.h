@@ -5,6 +5,7 @@
 #include "engine/FactoryPresets.h"
 #include "ui/EffectsPanel.h"
 #include "ui/GridComponent.h"
+#include "ui/VolumeComponent.h"
 #include "ui/NebulaLookAndFeel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -49,8 +50,11 @@ private:
   AlgoNebulaProcessor &processor;
   NebulaLookAndFeel nebulaLnF;
 
-  // --- Grid ---
+  // --- Grid / Volume ---
   GridComponent gridComponent;
+  std::unique_ptr<VolumeComponent> volumeComponent;
+  bool showing3D_ = false;
+  void updateViewMode();
 
   // --- Tooltip ---
   juce::TooltipWindow tooltipWindow{this, 400};

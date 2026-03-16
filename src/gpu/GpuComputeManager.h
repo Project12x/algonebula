@@ -10,8 +10,11 @@
 #include <chrono>
 #include <ghostsun_render/ComputeSimulation.h>
 #include <ghostsun_render/ReadbackManager.h>
+#include <ghostsun_render/VolumeRenderer.h>
 #include <juce_events/juce_events.h>
+#include <juce_graphics/juce_graphics.h>
 #include <memory>
+#include <mutex>
 
 class GpuComputeManager : private juce::Timer {
 public:
@@ -64,6 +67,26 @@ public:
   /// Steps per timer tick. Default 1.
   void setStepsPerFrame(int steps) { stepsPerFrame_ = std::max(1, steps); }
 
+  // --- 3D Volume rendering ---
+
+  /// Whether the current engine is 3D (Lenia3D).
+  bool is3D() const { return currentType_ == EngineType::Lenia3D; }
+
+  /// Get the latest rendered volume frame as a JUCE Image.
+  /// Thread-safe; called from the UI paint thread.
+  juce::Image getVolumeFrame() const {
+    std::lock_guard<std::mutex> lock(frameMutex_);
+    return volumeFrame_;
+  }
+
+  /// Camera orbit angle (radians). Set from UI mouse drag.
+  void setCameraOrbit(float radians) { cameraOrbit_ = radians; }
+  void setCameraElevation(float elev) { cameraElevation_ = elev; }
+  void setCameraDistance(float dist) { cameraDistance_ = dist; }
+  void setColorMode(int mode) { colorMode_ = mode; }
+  void setAudioLevel(float level) { audioLevel_ = level; }
+  float getCameraOrbit() const { return cameraOrbit_; }
+
 private:
   void timerCallback() override;
 
@@ -91,4 +114,25 @@ private:
   // Bridge
   GpuGridBridge bridge_;
   std::atomic<float> gpuStepMs_{0.0f};
+
+  // 3D Volume rendering
+  ghostsun::VolumeRenderer volumeRenderer_;
+  bool volumeRendererReady_ = false;
+  mutable std::mutex frameMutex_;
+  juce::Image volumeFrame_;
+  float cameraOrbit_ = 0.0f;
+  float cameraElevation_ = 0.3f;
+  float cameraDistance_ = 2.0f;
+  int colorMode_ = 3; // nebula
+  float audioLevel_ = 0.0f;
+  float time_ = 0.0f;
+
+  // Volume pixel readback
+  ghostsun::ReadbackManager pixelReadbackMgr_;
+  WGPUTexture offscreenTexture_ = nullptr;
+  WGPUTextureView offscreenView_ = nullptr;
+  int offscreenW_ = 0, offscreenH_ = 0;
+
+  void renderVolumeFrame(WGPUDevice device, WGPUCommandEncoder encoder);
+  void createOffscreenTexture(WGPUDevice device, int w, int h);
 };
