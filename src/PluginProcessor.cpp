@@ -567,9 +567,12 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     for (int v = 0; v < kMaxVoices; ++v)
       voices[v].reset();
 
-    // GPU needs reinit with new engine -- stop current, toggle-on will reinit
-    if (gpuActive.load(std::memory_order_relaxed)) {
+    // GPU needs reinit with new engine -- stop current
+    bool wasGpu = gpuActive.load(std::memory_order_relaxed);
+    if (wasGpu) {
       gpuActive.store(false, std::memory_order_relaxed);
+      // Prevent the GPU toggle section from re-initing with the OLD engine
+      gpuPending.store(true, std::memory_order_relaxed);
       auto *mgr = &gpuCompute;
       juce::MessageManager::callAsync([mgr]() { mgr->stop(); });
     }
@@ -580,13 +583,26 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     int capturedRows = gridRows;
     int capturedCols = gridCols;
     uint64_t capturedSeed = reseedRng;
-    juce::MessageManager::callAsync([this, capturedAlgo, capturedRows, capturedCols, capturedSeed]() {
+    juce::MessageManager::callAsync([this, capturedAlgo, capturedRows, capturedCols, capturedSeed, wasGpu]() {
       cpuStepTimer_.stop();
       engine = createEngine(capturedAlgo, capturedRows, capturedCols);
       engine->randomize(capturedSeed, 0.3f);
       gpuCompute.getBridge().updateFromCpu(engine->getGrid());
       cpuStepTimer_.setTargets(engine.get(), &gpuCompute.getBridge(), &cellEditQueue);
       cpuStepTimer_.start();
+
+      // If GPU was active before algo change, restart it with the NEW engine
+      if (wasGpu) {
+        auto eType = engine->getType();
+        if (gpuCompute.setEngine(eType, engine->getGrid().getRows(),
+                                 engine->getGrid().getCols())) {
+          gpuCompute.seed(capturedSeed, 0.3f);
+          if (gpuCompute.start()) {
+            gpuActive.store(true, std::memory_order_relaxed);
+          }
+        }
+        gpuPending.store(false, std::memory_order_relaxed);
+      }
     });
   }
   // Toggle GPU on/off ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â defer to message thread for timer/device safety
