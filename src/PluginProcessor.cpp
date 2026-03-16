@@ -1512,9 +1512,11 @@ void AlgoNebulaProcessor::setStateInformation(const void *data,
   if (version < 1)
     return; // Unknown version ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â skip grid restore
 
-  // Restore engine type and seed
-  int algoIdx = gridXml->getIntAttribute("algorithm", 0);
-  int gridSizeIdx = gridXml->getIntAttribute("gridSize", 1);
+  // Use APVTS as source of truth for algorithm/grid (already restored above)
+  int algoIdx =
+      static_cast<int>(apvts.getRawParameterValue("algorithm")->load());
+  int gridSizeIdx =
+      static_cast<int>(apvts.getRawParameterValue("gridSize")->load());
   auto seed = static_cast<uint64_t>(
       gridXml->getStringAttribute("seed", "12345").getLargeIntValue());
 
