@@ -75,6 +75,10 @@ AlgoNebulaEditor::AlgoNebulaEditor(AlgoNebulaProcessor &p)
       "Clock division: subdivides the BPM tempo. 1/1 = one step per beat, "
       "1/4 = four steps per beat, 1/16 = very rapid stepping. Lower divisions "
       "give the grid more time to evolve between note triggers.");
+  setupCombo(simSpeedCombo, "Speed", "simSpeed");
+  simSpeedCombo.combo.setTooltip(
+      "Simulation speed: runs engine N times per clock tick. "
+      "Higher = faster visual evolution between notes.");
   setupKnob(swingKnob, "Swing", "swing");
   swingKnob.slider.setTooltip(
       "Swing (0-100%): delays every other grid step for a shuffle feel. "
@@ -784,7 +788,7 @@ void AlgoNebulaEditor::resized() {
   auto clockArea = bottomArea.removeFromLeft(sectionW);
   clockArea.removeFromTop(14); // label gap
   auto clockKnobRow = clockArea.removeFromTop(knobSize + labelH + 4);
-  int clockItemW = clockKnobRow.getWidth() / 3;
+  int clockItemW = clockKnobRow.getWidth() / 4;
   {
     auto cell = clockKnobRow.removeFromLeft(clockItemW);
     bpmKnob.label.setBounds(cell.removeFromBottom(labelH));
@@ -797,6 +801,12 @@ void AlgoNebulaEditor::resized() {
     clockDivCombo.label.setBounds(cell.removeFromTop(labelH));
     cell.removeFromTop(2);
     clockDivCombo.combo.setBounds(cell.withHeight(comboH).reduced(2, 0));
+  }
+  {
+    auto cell = clockKnobRow.removeFromLeft(clockItemW);
+    simSpeedCombo.label.setBounds(cell.removeFromTop(labelH));
+    cell.removeFromTop(2);
+    simSpeedCombo.combo.setBounds(cell.withHeight(comboH).reduced(2, 0));
   }
   {
     auto cell = clockKnobRow;

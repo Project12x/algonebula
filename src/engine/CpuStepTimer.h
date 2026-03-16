@@ -97,11 +97,14 @@ private:
       editQueue_->drainInto(engine_->getGridMutable());
     }
 
-    // Process pending steps (consume all accumulated requests as one step)
+    // Process pending steps (run each requested step individually)
     int pending = stepsRequested_.exchange(0, std::memory_order_relaxed);
     if (pending > 0) {
-      engine_->getGridMutable().snapshotPrev();
-      engine_->step();
+      pending = std::min(pending, 16); // cap to prevent runaway
+      for (int i = 0; i < pending; ++i) {
+        engine_->getGridMutable().snapshotPrev();
+        engine_->step();
+      }
       bridge_->updateFromCpu(engine_->getGrid());
     }
   }

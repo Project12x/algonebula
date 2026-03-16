@@ -69,6 +69,7 @@ private:
   // --- Clock ---
   LabeledKnob bpmKnob;
   LabeledCombo clockDivCombo;
+  LabeledCombo simSpeedCombo;
   LabeledKnob swingKnob;
 
   // --- Envelope ---

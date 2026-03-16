@@ -64,6 +64,10 @@ AlgoNebulaProcessor::createParameterLayout() {
       juce::ParameterID("clockDiv", 1), "Clock Division",
       juce::StringArray{"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"}, 2));
 
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID("simSpeed", 1), "Sim Speed",
+      juce::StringArray{"1x", "2x", "4x", "8x", "16x"}, 0));
+
   // --- Scale ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID("scale", 1), "Scale",
@@ -723,20 +727,28 @@ void AlgoNebulaProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     voices[v].setFrozen(isFrozen);
 
 
+  // Read sim speed multiplier
+  static constexpr int kSimSpeeds[] = {1, 2, 4, 8, 16};
+  int simSpeedIdx =
+      static_cast<int>(apvts.getRawParameterValue("simSpeed")->load());
+  int simSpeed = kSimSpeeds[std::clamp(simSpeedIdx, 0, 4)];
+
   // GPU path: simulation runs on GPU timer thread; CPU path: step on clock tick
   auto& bridge = gpuCompute.getBridge();
   if (gpuActive.load(std::memory_order_relaxed)) {
     // GPU is stepping via GpuComputeManager timer.
     // Bridge is updated by readback callback on message thread.
+    gpuCompute.setStepsPerFrame(simSpeed);
     for (int i = 0; i < numSamples; ++i) {
       if (clock.tick() && isRunning && !isFrozen)
         stepTriggeredThisBlock = true;
     }
   } else {
-    // CPU path: request step via message-thread timer (RT-safe)
+    // CPU path: request N steps per clock tick via message-thread timer
     for (int i = 0; i < numSamples; ++i) {
       if (clock.tick() && isRunning && !isFrozen) {
-        cpuStepTimer_.requestStep();
+        for (int s = 0; s < simSpeed; ++s)
+          cpuStepTimer_.requestStep();
         stepTriggeredThisBlock = true;
       }
     }
