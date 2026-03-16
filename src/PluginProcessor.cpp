@@ -50,7 +50,7 @@ AlgoNebulaProcessor::createParameterLayout() {
   // --- Algorithm ---
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID("algorithm", 1), "Algorithm",
-      juce::StringArray{"Game of Life", "Wolfram 1D", "Brian's Brain",
+      juce::StringArray{"Game of Life", "HighLife", "Brian's Brain",
                         "Cyclic CA", "Reaction-Diffusion", "Particle Swarm",
                         "Lenia", "Brownian Field"},
       0));
